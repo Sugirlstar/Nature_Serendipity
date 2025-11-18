@@ -34,6 +34,7 @@ import imageio
 import cv2
 import copy
 from collections import defaultdict
+from scipy.interpolate import RegularGridInterpolator
 
 sys.stdout.reconfigure(line_buffering=True) # print at once in slurm
 
@@ -132,15 +133,6 @@ def getSliceSingle(LWA_dayi, latid, lonid, latLWA, lonLWA, LWA_td,
 LWA_td_origin = np.load('/scratch/bell/hu1029/LGHW/LWA_td_1979_2021_ERA5_6hr.npy')  # [0]~[-1] it's from south to north
 LWA_td_origin = LWA_td_origin/100000000 # change the unit to 1e8 
 
-# ds = xr.open_dataset('/scratch/bell/hu1029/Data/processed/ERA5_Z500anomaly_subtractseasonal_6hr_1979_2021_1dg.nc')
-# Zanom_origin = np.array(ds['z'].squeeze())  # [0]~[-1] it's from north to south
-# print(np.shape(Zanom_origin), flush=True)
-# print('-------- Zanom loaded --------', flush=True)
-# # attributes for tracks
-# lon = np.array(ds['lon'])
-# lat = np.array(ds['lat']) # -90~90
-# print(lat, flush=True)
-
 # # %% 01 get the LWA events ------------------------
 # # read in the track's timesteps (6-hourly)
 ds = xr.open_dataset('/scratch/bell/hu1029/Data/processed/ERA5_Z500anomaly_subtractseasonal_6hr_1979_2021.nc')
@@ -148,72 +140,54 @@ timesarr = np.array(ds['time'])
 datetime_array = pd.to_datetime(timesarr)
 timei = list(datetime_array)
 
-for rgname in ["ATL"]:
-
-    dstrack = xr.open_dataset('/scratch/bell/hu1029/Data/processed/ERA5_Z500anomaly_subtractseasonal_6hr_1979_2021.nc')
-    tracklon = np.array(ds['lon'])
-    tracklat = np.array(ds['lat'])
-    tracklat = np.flip(tracklat)
-    if rgname == "SP":
-        tracklat = tracklat[0:(findClosest(0,tracklat)+1)]
-    else:
-        tracklat = tracklat[(findClosest(0,tracklat)+1):len(tracklat)]
-
-    lat_min, lat_max, lon_min, lon_max = Region_ERA(rgname)
-    lat_min1, lat_max1, lon_min1, lon_max1, loncenter = PlotBoundary(rgname)
-    print(lat_min1, lat_max1, lon_min1, lon_max1)
-
-    if rgname == "SP":
-        HMi = '_SH'
-    else:
-        HMi = ''
-
-    # read in lat and lon for LWA
-    lon = np.load('/scratch/bell/hu1029/LGHW/LWA_lon_1979_2021_ERA5_6hr.npy')
-    lat = np.load('/scratch/bell/hu1029/LGHW/LWA_lat_1979_2021_ERA5_6hr.npy') # descending order 90~-90
-    # get the lat and lon for LWA, grouped by NH and SH
-    lat_mid = int(len(lat)/2) + 1 
-    if rgname == "SP":
-        latLWA = lat[lat_mid:len(lat)]
-        LWA_td = LWA_td_origin[:,lat_mid:len(lat),:] 
-    else:
-        latLWA = lat[0:lat_mid-1]
-        LWA_td = LWA_td_origin[:,0:lat_mid-1,:]
-    latLWA = np.flip(latLWA) # make it ascending order (from south to north)
-    LWA_td = np.flip(LWA_td, axis=1) 
-    print(latLWA, flush=True)
-    print('LWA shape: ', LWA_td.shape, flush=True)
-    lonLWA = lon 
-
-    # get the wave event
-    T = LWA_td.shape[0]
-    print('Total number of timesteps:', T, flush=True)
-
-    T4 = T // 4
-    LWA_Z = LWA_td[:T4*4]
-    LWA_Z = LWA_Z.reshape(T4, 4, len(latLWA), len(lonLWA)).mean(axis=1) # daily mean of LWA
-
-    print('LWA_Z loaded, shape: ', LWA_Z.shape, flush=True)
-
-    # # get the Z500 anomaly data -----------------
-    # # attributes for track array and blockings
-    # lat_mid = int(len(lat)/2) + 1 
-    # if rgname == "SP":
-    #     Blklat = lat[0:lat_mid-1]
-    #     Zanom = Zanom_origin[:, 0:lat_mid-1, :]
-    # else:
-    #     Blklat = lat[lat_mid:len(lat)]
-    #     Zanom = Zanom_origin[:, lat_mid:len(lat), :]
-
-    # T = Zanom.shape[0]
-    # print('Total number of timesteps:', T, flush=True)
-
-    # T4 = T // 4
-    # Zanom_Z = Zanom[:T4*4]
-    # Zanom_Z = Zanom_Z.reshape(T4, 4, len(latLWA), len(lonLWA)).mean(axis=1) # daily mean of LWA
 
 ss = 'ALL'
 rgname = "ATL"
+
+dstrack = xr.open_dataset('/scratch/bell/hu1029/Data/processed/ERA5_Z500anomaly_subtractseasonal_6hr_1979_2021.nc')
+tracklon = np.array(ds['lon'])
+tracklat = np.array(ds['lat'])
+tracklat = np.flip(tracklat)
+if rgname == "SP":
+    tracklat = tracklat[0:(findClosest(0,tracklat)+1)]
+else:
+    tracklat = tracklat[(findClosest(0,tracklat)+1):len(tracklat)]
+
+lat_min, lat_max, lon_min, lon_max = Region_ERA(rgname)
+lat_min1, lat_max1, lon_min1, lon_max1, loncenter = PlotBoundary(rgname)
+print(lat_min1, lat_max1, lon_min1, lon_max1)
+
+if rgname == "SP":
+    HMi = '_SH'
+else:
+    HMi = ''
+
+# read in lat and lon for LWA
+lon = np.load('/scratch/bell/hu1029/LGHW/LWA_lon_1979_2021_ERA5_6hr.npy')
+lat = np.load('/scratch/bell/hu1029/LGHW/LWA_lat_1979_2021_ERA5_6hr.npy') # descending order 90~-90
+# get the lat and lon for LWA, grouped by NH and SH
+lat_mid = int(len(lat)/2) + 1 
+if rgname == "SP":
+    latLWA = lat[lat_mid:len(lat)]
+    LWA_td = LWA_td_origin[:,lat_mid:len(lat),:] 
+else:
+    latLWA = lat[0:lat_mid-1]
+    LWA_td = LWA_td_origin[:,0:lat_mid-1,:]
+latLWA = np.flip(latLWA) # make it ascending order (from south to north)
+LWA_td = np.flip(LWA_td, axis=1) 
+print(latLWA, flush=True)
+print('LWA shape: ', LWA_td.shape, flush=True)
+lonLWA = lon 
+
+# get the wave event
+T = LWA_td.shape[0]
+print('Total number of timesteps:', T, flush=True)
+
+T4 = T // 4
+LWA_Z = LWA_td[:T4*4]
+LWA_Z = LWA_Z.reshape(T4, 4, len(latLWA), len(lonLWA)).mean(axis=1) # daily mean of LWA
+
+print('LWA_Z loaded, shape: ', LWA_Z.shape, flush=True)
 
 
 # %% read in necessary data for the composite
@@ -233,7 +207,7 @@ for t in range(embryoArr.shape[0]):
             if eid >= 0:
                 embryo_id_to_days[int(eid)].append(t)
 
-# # %% make the composite of embryo v.s. blocking events ------------------------
+# # %% make the composite of embryo ------------------------
 
 # latarr = np.arange((0-40),(0+40))
 # lonarr = np.arange((0-80),(0+40))
@@ -289,41 +263,25 @@ embryoArr = np.repeat(embryoArr, 4, axis=0)  # transfer to 6-hourly index
 
 AC_trackPoints_array = np.load(f'/scratch/bell/hu1029/LGHW/ACtrackPoints_array{HMi}.npy')
 CC_trackPoints_array = np.load(f'/scratch/bell/hu1029/LGHW/CCtrackPoints_array{HMi}.npy')
-# AC_trackPoints_array_thinned = AC_trackPoints_array[::4, :, :] # get the daily value
-# CC_trackPoints_array_thinned = CC_trackPoints_array[::4, :, :] # get the daily value
+AC_ID_array = np.load(f'/scratch/bell/hu1029/LGHW/ACtrackPoints_TrackIDarray{HMi}.npy')
+CC_ID_array = np.load(f'/scratch/bell/hu1029/LGHW/CCtrackPoints_TrackIDarray{HMi}.npy')
 
-# test plot the CC points
-theday = 411*4 # 1980-02-16 00:00
-timedate = timei[theday]
-print('test date:', timedate, flush=True)
-embryoArrtest = embryoArr[theday]
-print(np.unique(embryoArrtest), flush=True)  # print the unique embryo values in the slice
-print('it should be in the RidgeSuccssEmbryo')
+# get the track lists
+# read in the track's interaction information
+if rgname == "SP":
+    with open(f'/scratch/bell/hu1029/LGHW/ACZanom_allyearTracks_SH.pkl', 'rb') as file:
+        AC_track_data = pickle.load(file)
+    with open(f'/scratch/bell/hu1029/LGHW/CCZanom_allyearTracks_SH.pkl', 'rb') as file:
+        CC_track_data = pickle.load(file)
+else:
+    with open(f'/scratch/bell/hu1029/LGHW/ACZanom_allyearTracks.pkl', 'rb') as file:
+        AC_track_data = pickle.load(file)
+    with open(f'/scratch/bell/hu1029/LGHW/CCZanom_allyearTracks.pkl', 'rb') as file:
+        CC_track_data = pickle.load(file)
+    
+AClist_dic  = {item[0]: item[1] for item in AC_track_data}
+CClist_dic  = {item[0]: item[1] for item in CC_track_data}
 
-mask0 = embryoArrtest >= 0 # transform the slice to a boolean array
-fig, ax, cf = create_Map(lonLWA,latLWA,LWA_td[theday,:,:],fill=True,fig=None,
-                    leftlon=lon_min1, rightlon=lon_max1, lowerlat=lat_min1, upperlat=lat_max1,
-                        minv=0, maxv=np.nanmax(LWA_td[theday,:,:]), interv=11, figsize=(12,5),
-                        centralLon=loncenter, colr='PuBu', extend='max',title=f'{timei[theday]}')
-ax.contour(lonLWA, latLWA, mask0.astype(float), levels=[0.5], 
-            colors='darkblue', linewidths=1.5, transform=ccrs.PlateCarree())
-AAlat,AAlon = np.where(AC_trackPoints_array[theday]>=1)
-AAlatvalue = tracklat[AAlat]
-AAlonvalue = tracklon[AAlon]
-ax.scatter(AAlonvalue, AAlatvalue, color='blue', s=20, label='AC points', transform=ccrs.PlateCarree(),zorder=10)
-
-plt.show()
-plt.savefig(f'testACtrackPoint.png', bbox_inches='tight', dpi=300)
-plt.close()
-
-# get the successful blocking event number for each blocking type
-successNum1 = np.load(f'/scratch/bell/hu1029/LGHW/embryo_SuccessNumbersEachEmbryo_BlkType1_{rgname}.npy', )
-successNum2 = np.load(f'/scratch/bell/hu1029/LGHW/embryo_SuccessNumbersEachEmbryo_BlkType2_{rgname}.npy', )
-successNum3 = np.load(f'/scratch/bell/hu1029/LGHW/embryo_SuccessNumbersEachEmbryo_BlkType3_{rgname}.npy', )
-# the global ids of the embryo that successfully develop into a blocking event for type 1, 2, 3
-success1ids = np.where(successNum1 > 0)[0]  
-success2ids = np.where(successNum2 > 0)[0]  
-success3ids = np.where(successNum3 > 0)[0] 
 
 withTrackID = []
 withACID = []
@@ -350,41 +308,91 @@ all_included = np.all(np.isin(TroughSuccssEmbryo, RealEmbryoIDs))
 if not all_included:
     print('Warning: Not all successful Trough embryo IDs are included in the real embryo IDs.', flush=True)
 
-# timeiday = timei[::4]
+# check each embryo
 for k, ebyroid in enumerate(RealEmbryoIDs):
+
     print(f'Embryo ID: {ebyroid}', flush=True)
-    emdays = embryo_id_to_days[ebyroid]  # get the days of the embryo event
+    emdays = embryo_id_to_days[ebyroid]  # get the day index of the embryo event
     emdaysfirstinhour = emdays[0]*4  # the 1st day of the embryo event, transfer to 6-hourly index
     emdays = np.arange(emdaysfirstinhour, emdaysfirstinhour + 4*3)  # get the first 3 days
+    print(f'Embryo day indicies: {emdays}', flush=True)
 
     ACnumber = 0
     CCnumber = 0
 
+    # check each day
     for i in np.arange(len(emdays)):
+
         theday = emdays[i]  # the ist day of the embryo event
         dateid = timei[theday]
         # get the day slice of the embryo event
         embryoslice = embryoArr[theday]
         mask0 = embryoslice == ebyroid # transform the slice to a boolean array
-        center0 = np.unravel_index(np.argmax(LWA_td[theday,:,:] * mask0, axis=None), LWA_td[theday,:,:].shape)
-        centerlat = center0[0]  # the latitude index of the center
-        centerlon = center0[1]  # the longitude index of the center
-        print(f'Center latitude index: {centerlat}, Center longitude index: {centerlon}', flush=True)
-        centerlatvalue = latLWA[centerlat]  # the latitude value of the center
-        centerlonvalue = lonLWA[centerlon]  # the longitude value of the center
-        print(f'Center latitude value: {centerlatvalue}, Center longitude value: {centerlonvalue}', flush=True)
 
-        centerlatidx = findClosest(centerlatvalue, tracklat)  # get the latitude index of the center
-        centerlonidx = findClosest(centerlonvalue, tracklon)  # get the longitude index of the center
+        # logic2: only focus on the embryo region, filter the eddies born in the embryo region
+        interp_func = RegularGridInterpolator((latLWA, lonLWA), mask0, method='nearest', bounds_error=False, fill_value=np.nan)
+        track_lon2d, track_lat2d = np.meshgrid(tracklon, tracklat)
+        points2d = np.column_stack((track_lat2d.ravel(), track_lon2d.ravel()))
+        mask0_tracklonlat = interp_func(points2d).reshape(track_lat2d.shape)
 
-        ACdaySlice = getSliceSingle(theday, centerlatidx, centerlonidx, tracklat, tracklon, AC_trackPoints_array, 
-                                    latup=10, latdown=10, lonleft=20, lonright=0)
-        CCdaySlice = getSliceSingle(theday, centerlatidx, centerlonidx, tracklat, tracklon, CC_trackPoints_array, 
-                                    latup=10, latdown=10, lonleft=20, lonright=0)
+        AC_ID_array_day = AC_ID_array[theday,:,:]  # get the AC ID array for the day
+        CC_ID_array_day = CC_ID_array[theday,:,:]  # get the CC ID array for the day
+        AC_ID_inregion = mask0_tracklonlat * AC_ID_array_day  # get the AC ID array in the embryo region
+        CC_ID_inregion = mask0_tracklonlat * CC_ID_array_day  # get the CC ID array in the embryo region
+        ACvalues = np.unique(AC_ID_inregion[~np.isnan(AC_ID_inregion)])  # get the unique AC IDs in the embryo region
+        CCvalues = np.unique(CC_ID_inregion[~np.isnan(CC_ID_inregion)])  # get the unique CC IDs in the embryo region
+        ACvalues = ACvalues[ACvalues > 0]  # remove the background values
+        CCvalues = CCvalues[CCvalues > 0]  # remove the background values
+        print(f'AC values in the embryo region: {ACvalues}', flush=True)
+        print(f'CC values in the embryo region: {CCvalues}', flush=True)
+        # find the first day of the AC and CC events, to make sure they are born before the embryo region
 
-        # get the total number of AC and CC points
-        ACnumber = ACnumber + np.nansum(ACdaySlice)
-        CCnumber = CCnumber + np.nansum(CCdaySlice)
+        # === visulization ===
+        if k==0 and i==0:
+
+            fig, axs = plt.subplots(1, 2, figsize=(14, 6))
+            # raw
+            im0 = axs[0].pcolormesh(lonLWA, latLWA, mask0, shading='auto')
+            axs[0].set_title("Original mask0")
+            axs[0].set_xlabel("Longitude")
+            axs[0].set_ylabel("Latitude")
+            plt.colorbar(im0, ax=axs[0], orientation='vertical')
+            # interpolated
+            im1 = axs[1].pcolormesh(tracklon, tracklat, mask0_tracklonlat, shading='auto')
+            axs[1].set_title("Interpolated mask0 to new lat-lon grid")
+            axs[1].set_xlabel("Longitude")
+            axs[1].set_ylabel("Latitude")
+            plt.colorbar(im1, ax=axs[1], orientation='vertical')
+
+            plt.tight_layout()
+            plt.show()
+            plt.savefig('embryo_mask_interpolation.png', bbox_inches='tight', dpi=300)
+
+
+        # # logic1: use the center to set a target region
+        # center0 = np.unravel_index(np.argmax(LWA_td[theday,:,:] * mask0, axis=None), LWA_td[theday,:,:].shape)
+        # centerlat = center0[0]  # the latitude index of the center
+        # centerlon = center0[1]  # the longitude index of the center
+        # print(f'Center latitude index: {centerlat}, Center longitude index: {centerlon}', flush=True)
+        # centerlatvalue = latLWA[centerlat]  # the latitude value of the center
+        # centerlonvalue = lonLWA[centerlon]  # the longitude value of the center
+        # print(f'Center latitude value: {centerlatvalue}, Center longitude value: {centerlonvalue}', flush=True)
+
+        # centerlatidx = findClosest(centerlatvalue, tracklat)  # get the latitude index of the center
+        # centerlonidx = findClosest(centerlonvalue, tracklon)  # get the longitude index of the center
+
+        # ACdaySlice = getSliceSingle(theday, centerlatidx, centerlonidx, tracklat, tracklon, AC_trackPoints_array, 
+        #                             latup=10, latdown=10, lonleft=20, lonright=0)
+        # ACIDSlice = getSliceSingle(theday, centerlatidx, centerlonidx, tracklat, tracklon, AC_ID_array,
+        #                             latup=10, latdown=10, lonleft=20, lonright=0)
+        
+        # CCdaySlice = getSliceSingle(theday, centerlatidx, centerlonidx, tracklat, tracklon, CC_trackPoints_array, 
+        #                             latup=10, latdown=10, lonleft=20, lonright=0)
+        # CCIDSlice = getSliceSingle(theday, centerlatidx, centerlonidx, tracklat, tracklon, CC_ID_array,
+        #                             latup=10, latdown=10, lonleft=20, lonright=0)
+        # # get the total number of AC and CC points
+        # ACnumber = ACnumber + np.nansum(ACdaySlice)
+        # CCnumber = CCnumber + np.nansum(CCdaySlice)
 
         # if k in [0,50,100,150,200]:  # only plot the first 8 embryos as examples
                 

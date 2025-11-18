@@ -38,10 +38,10 @@ from collections import defaultdict
 
 # %% 00 function --------------------------------
 regions = ["ATL", "NP", "SP"]
-seasons = ["DJF", "JJA", "ALL"]
-seasonsmonths = [[12, 1, 2], [6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
+seasons = [ "ALL", "DJF", "JJA"]
+seasonsmonths = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [12, 1, 2], [6, 7, 8]]
 blkTypes = ["Ridge", "Trough", "Dipole"]
-cycTypes = ["CC", "AC"]
+cycTypes = ["AC", "CC"]
 
 def Region_ERA(regionname): 
     if regionname == "ATL": 
@@ -68,17 +68,22 @@ def findClosest(lati, latids):
 
 # ACtracks ===========================
 # tracks
-for typeid in [1, 2, 3]:
+for ss in seasons:        
     for cyc in cycTypes:
-        for ss in seasons:
+        for typeid in [1, 2, 3]:
             for rgname in regions:
                 
                 print(f'Start: {cyc}, type {typeid}, {rgname}, {ss}', flush=True)
 
+                # check if the result file exists
+                if os.path.exists(f'/scratch/bell/hu1029/LGHW/{cyc}trackInteracting_array_Type{typeid}_{rgname}_{ss}.npy'):
+                    print(f'File already exists: {cyc}trackInteracting_array_Type{typeid}_{rgname}_{ss}.npy', flush=True)
+                    continue
+
                 if rgname == "SP":
                     HMi = '_SH'
                 else:
-                    HMi = ''
+                    HMi = '_NH'
 
                 # 01 read data --------------------------------------------------------------
                 # attributes for tracks
@@ -107,6 +112,10 @@ for typeid in [1, 2, 3]:
                 lat_min, lat_max, lon_min, lon_max = Region_ERA(rgname)
                 
                 # get the interact id
+                # find if the file exists
+                if not os.path.exists(f'/scratch/bell/hu1029/LGHW/TrackBlockingType{typeid}_Index_1979_2021_{rgname}_{ss}_{cyc}.npy'):
+                    print(f'File not found: TrackBlockingType{typeid}_Index_1979_2021_{rgname}_{ss}_{cyc}.npy', flush=True)
+                    continue
                 InterTypeSec2CC = np.load(f'/scratch/bell/hu1029/LGHW/TrackBlockingType{typeid}_Index_1979_2021_{rgname}_{ss}_{cyc}.npy')
                 interidCC = np.where(InterTypeSec2CC != -1)[0] # the location of the tracks that intersect with the blocking
 
@@ -125,6 +134,7 @@ for typeid in [1, 2, 3]:
                 # make an array representing the trackpoint density
                 trackPoints_idarr = np.full((len(datetime_array), len(Blklat), len(Blklon)),fill_value=-1, dtype=np.int64)
                 trackPoints_array = np.zeros((len(datetime_array), len(Blklat), len(Blklon)), dtype=np.int16)
+
                 time_indices = np.searchsorted(timeiarr, time_list)
                 lat_indices = np.array([findClosest(x, Blklat) for x in x_list])
                 lon_indices = np.array([findClosest(y, Blklon) for y in y_list])
@@ -136,6 +146,8 @@ for typeid in [1, 2, 3]:
                 # count numbers save in trackPoints_array
                 np.add.at(trackPoints_array, (time_indices, lat_indices, lon_indices), 1)
                 trackPoints_idarr[time_indices, lat_indices, lon_indices] = trackidarr
+
+                trackPoints_array.astype(bool)
 
                 np.save(f'/scratch/bell/hu1029/LGHW/{cyc}trackInteracting_array_Type{typeid}_{rgname}_{ss}.npy', trackPoints_array)
                 np.save(f'/scratch/bell/hu1029/LGHW/{cyc}trackInteracting_idarr_Type{typeid}_{rgname}_{ss}.npy', trackPoints_idarr)
@@ -150,7 +162,7 @@ for typeid in [1, 2, 3]:
 
                 plt.show()
                 plt.tight_layout()
-                plt.savefig(f'{cyc}InteractingFrequency_Type{typeid}_{rgname}_{ss}.png')
+                plt.savefig(f'SD_{cyc}InteractingFrequency_Type{typeid}_{rgname}_{ss}.png')
                 plt.close()
 
                 print(f'Finished {cyc} interacting tracks density for type {typeid} in {rgname} during {ss}', flush=True)

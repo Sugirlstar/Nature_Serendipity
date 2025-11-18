@@ -37,10 +37,10 @@ from scipy.stats import pearsonr
 
 # %% 00 prepare the environment and functions
 regions = ["ATL", "NP", "SP"]
-seasons = ["DJF", "JJA","ALL"]
-seasonsmonths = [[12, 1, 2], [6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
+seasons = ["ALL", "DJF", "JJA"]
+seasonsmonths = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [12, 1, 2], [6, 7, 8]]
 blkTypes = ["Ridge", "Trough", "Dipole"]
-cycTypes = ["CC", "AC"]
+cycTypes = ["AC", "CC"]
 
 def Region_ERA(regionname): 
     if regionname == "ATL": 
@@ -90,7 +90,7 @@ for rgname in regions:
     lat = np.array(ds['lat'])
     lat = np.flip(lat)
     if rgname == "SP":
-        lat = lat[0:(findClosest(0,lat)+1)]
+        lat = lat[0:(findClosest(0,lat)+1)] # lat increasing!
     else:
         lat = lat[(findClosest(0,lat)+1):len(lat)]
     # time management
@@ -105,7 +105,7 @@ for rgname in regions:
         latBLK = latBLK[lat_mid:len(latBLK)]
     else:
         latBLK = latBLK[0:lat_mid-1]
-    latBLK = np.flip(latBLK)
+    latBLK = np.flip(latBLK) # make the lat increasing
     print(latBLK)
 
     for typeid in [1,2,3]:
@@ -122,7 +122,7 @@ for rgname in regions:
                     with open(f'/scratch/bell/hu1029/LGHW/{cyc}Zanom_allyearTracks_SH.pkl', 'rb') as file:
                         track_data = pickle.load(file)
                 else:
-                    with open(f'/scratch/bell/hu1029/LGHW/{cyc}Zanom_allyearTracks.pkl', 'rb') as file:
+                    with open(f'/scratch/bell/hu1029/LGHW/{cyc}Zanom_allyearTracks_NH.pkl', 'rb') as file:
                         track_data = pickle.load(file)
                 print('track loaded-----------------------',flush=True)
 
@@ -131,7 +131,7 @@ for rgname in regions:
                 # get the blocking index each track contribute to (-1 or the blocking global index), 1d, same length as the track_data
                 InteractingBlockID = np.load(f'/scratch/bell/hu1029/LGHW/TrackBlockingType{typeid}_Index_1979_2021_{rgname}_{ss}_{cyc}.npy')        
                 # get the blocking event index list (global index), 1d list, all blocking events in the target region
-                with open(f'/scratch/bell/hu1029/LGHW/BlockingFlagmaskClustersEventList_Type{typeid}_{rgname}_{ss}', "rb") as f:
+                with open(f'/scratch/bell/hu1029/LGHW/SD_BlockingFlagmaskClustersEventList_Type{typeid}_{rgname}_{ss}', "rb") as f:
                     Sec2BlockEvent = pickle.load(f)
                 print(f'blocking id of each event: {Sec2BlockEvent}',flush=True)
                 eventPersistence = np.load(f'/scratch/bell/hu1029/LGHW/BlockingEventPersistence_Type{typeid}_{rgname}_{ss}.npy') # load the event persistence
@@ -140,8 +140,8 @@ for rgname in regions:
                     firstday_Date = pickle.load(fp)
 
                 # the arr of the blocking event, filled witht the event id, 3d
-                BlockingEIndexSec2 = np.load(f'/scratch/bell/hu1029/LGHW/BlockingFlagmaskClusters_Type{typeid}_{rgname}_{ss}.npy')
-                BlockingEIndexSec2 = np.flip(BlockingEIndexSec2, axis=1) # flip the lat
+                BlockingEIndexSec2 = np.load(f'/scratch/bell/hu1029/LGHW/SD_BlockingFlagmaskClusters_Type{typeid}_{rgname}_{ss}.npy')
+                BlockingEIndexSec2 = np.flip(BlockingEIndexSec2, axis=1) # flip the lat, make it increasing
                 BlockingEIndexSec2 = np.repeat(BlockingEIndexSec2, 4, axis=0)
 
                 # 01 the number of blocking events within the target region --------------------------------
@@ -152,7 +152,7 @@ for rgname in regions:
                 InteractingBlockID_uniquev = np.unique(InteractingBlockID_uniquev) # get the unique values
                 BlockwithTrackLen = len(InteractingBlockID_uniquev) # the number of unique blocking events that has ever interact with the tracks
 
-                with open(f"./enterleave/BlockingBasedProbability.txt", "a") as f:  
+                with open(f"./SD_enterleave/BlockingBasedProbability.txt", "a") as f:  
                     f.write(f'Blocking type{typeid} - {cyc} - {rgname} - {ss} withTrack number: {BlockwithTrackLen}\n')
                     f.write(f'Blocking type{typeid} - {cyc} - {rgname} - {ss} withoutTrack number: {numBlockEvent-BlockwithTrackLen}\n')
 
@@ -181,9 +181,10 @@ for rgname in regions:
                             n = n+1
                             break # count only once for each track
                 
-                with open(f"./enterleave/EddyBasedProbability.txt", "a") as f:  
+                with open(f"./SD_enterleave/EddyBasedProbability.txt", "a") as f:  
                     f.write(f'Eddy type{typeid} - {cyc} - {rgname} - {ss} has ever enter into the target region: {n}\n')
                     f.write(f'Eddy type{typeid} - {cyc} - {rgname} - {ss} has ever interact with blocking: {np.sum(InteractingBlockID != -1)}\n')
+                    f.write('------------------------\n')
 
                 # 03 calculate the distribution of entering and leaving time of the blocking events, relative to the blocking's life cycle --------------------------------
                 intopercentList = []
@@ -246,58 +247,20 @@ for rgname in regions:
 
                 np.save(f'/scratch/bell/hu1029/LGHW/EnterTimePointr2Blk1stDay_type{typeid}_{cyc}_{rgname}_{ss}.npy', entertime)
                 np.save(f'/scratch/bell/hu1029/LGHW/LeaveTimePointr2Blk1stDay_type{typeid}_{cyc}_{rgname}_{ss}.npy', leavetime)
-                
+
                 np.save(f'/scratch/bell/hu1029/LGHW/intopercentList_type{typeid}_{cyc}_{rgname}_{ss}.npy', np.array(intopercentList))
                 np.save(f'/scratch/bell/hu1029/LGHW/leavepercentList_type{typeid}_{cyc}_{rgname}_{ss}.npy', np.array(leavepercentList))
                 np.save(f'/scratch/bell/hu1029/LGHW/interactingduration_type{typeid}_{cyc}_{rgname}_{ss}.npy', np.array(interactingduration))
 
                 print('Enter and leave time saved-----------------------',flush=True)
 
-                # test2: KDE+scatter plot of entry time and blocking duration+blocking duration pdf
-                from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+                # # plot 01: KDE+scatter plot of entry time and blocking duration+blocking duration pdf
+                # from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-                fig, ax1 = plt.subplots(figsize=(10, 6))
+                # fig, ax1 = plt.subplots(figsize=(10, 6))
 
-                sns.kdeplot(
-                    x=interactingduration,  # convert to days
-                    y=intopercentList, 
-                    fill=True, 
-                    cmap='Reds', 
-                    levels=50, 
-                    thresh=0.05,
-                    cbar=True,
-                    ax=ax1,
-                    cbar_kws={'label': 'Density'}
-                )
-                ax1.set_xlabel('Eddy Stay time (days)')
-                ax1.set_ylabel('Entry Time (% of Blocking Persistence)')
-                ax1.set_ylim(0, 1)
-                ax1.set_title(f'Eddy-Blocking Interaction Number: {len(intopercentList)}')
-
-                plt.savefig(f'./enterleave/EnterWithStay_type{typeid}_{cyc}_{rgname}_{ss}.png')
-                plt.close()
-
-                # # get the total blocking persistence
-                # BlkTotalPersistence = np.load(f'/scratch/bell/hu1029/LGHW/BlockingEventPersistence_Type{typeid}_{rgname}_{ss}.npy')
-                # totaln = len(BlkTotalPersistence)
-
-                # from matplotlib.gridspec import GridSpec
-
-                # fig = plt.figure(figsize=(10, 6))
-                # gs = GridSpec(2, 1, height_ratios=[1, 2], hspace=0.05)  
-
-                # # Top 1D KDE plot
-                # ax_top = fig.add_subplot(gs[0])
-                # sns.kdeplot(x=BlkTotalPersistence, fill=True, color='steelblue', ax=ax_top)
-                # ax_top.axis('off')
-                # ax_top.set_xlim(min(BlkTotalPersistence), max(BlkTotalPersistence))
-                # ax_top.text(0.98, 0.98, f'Total Blocking N = {totaln}', transform=ax_top.transAxes,
-                #             ha='right', va='top')
-
-                # # Bottom 2D KDE plot
-                # ax1 = fig.add_subplot(gs[1])
                 # sns.kdeplot(
-                #     x=blkpersistList, 
+                #     x=interactingduration,  # convert to days
                 #     y=intopercentList, 
                 #     fill=True, 
                 #     cmap='Reds', 
@@ -305,23 +268,42 @@ for rgname in regions:
                 #     thresh=0.05,
                 #     cbar=True,
                 #     ax=ax1,
-                #     cbar_kws={
-                #         'label': 'Density',
-                #         'orientation': 'horizontal',
-                #         'pad': 0.1 
-                #     }
+                #     cbar_kws={'label': 'Density'}
                 # )
-                # ax1.set_xlabel('Blocking Persistence (days)')
+                # ax1.set_xlabel('Eddy Stay time (days)')
                 # ax1.set_ylabel('Entry Time (% of Blocking Persistence)')
                 # ax1.set_ylim(0, 1)
-                # ax1.set_xlim(ax_top.get_xlim())
-
-                # ax1.text(0.98, 0.98, f'N = {len(intopercentList)}', transform=ax1.transAxes,
-                #             ha='right', va='top')
-                
-                # plt.savefig(f'./enterleave/AddPDF_EnterPersistence_type{typeid}_{cyc}_{rgname}_{ss}.png', dpi=300)
+                # ax1.set_title(f'Eddy-Blocking Interaction Number: {len(intopercentList)}')
+                # plt.savefig(f'./SD_enterleave/EnterWithStay_type{typeid}_{cyc}_{rgname}_{ss}.png')
                 # plt.close()
 
+                # plot 02: make a 1d histogram of the intopercentList
+                fig, ax1 = plt.subplots(figsize=(8, 6))
+                # Plot histogram as frequency (count)
+                sns.histplot(intopercentList, bins=20, stat='count', ax=ax1, color='skyblue')
+                ax1.set_xlabel('Entry Time (% of Blocking Persistence)')
+                ax1.set_ylabel('Frequency')
+                ax1.set_title(f'Eddy-Blocking Interaction Number: {len(intopercentList)}')
+                ax1.set_xlim(0, 1)
+                plt.savefig(f'./SD_enterleave/EnterTimePDF_type{typeid}_{cyc}_{rgname}_{ss}.png')
+                plt.close()
 
+
+# statistics of the entering time and interacting duration
+ss = 'ALL'
+for typeid in [1,2,3]:
+     for cyc in cycTypes:
+        for rgname in regions:
+
+            print(f'start: Blocking type{typeid} - {cyc} - {rgname} - {ss}')
+            intopercentList = np.load(f'/scratch/bell/hu1029/LGHW/intopercentList_type{typeid}_{cyc}_{rgname}_{ss}.npy')
+            interactingduration = np.load(f'/scratch/bell/hu1029/LGHW/interactingduration_type{typeid}_{cyc}_{rgname}_{ss}.npy')
+            print(f'{typeid}_{cyc}_{rgname}_{ss}, intopercent<=20% percentage: {len(np.where(intopercentList<=0.2)[0])/len(intopercentList)}', flush=True)
+            print(f'{typeid}_{cyc}_{rgname}_{ss}, duration<=2 percentage: {len(np.where(interactingduration<=2)[0])/len(interactingduration)}', flush=True)
+
+            with open("EnterStay_Statistic.txt", "a") as f:
+                f.write(f'{typeid}_{cyc}_{rgname}_{ss}, intopercent<=20% percentage: {len(np.where(intopercentList<=0.2)[0])/len(intopercentList)}\n')
+                f.write(f'{typeid}_{cyc}_{rgname}_{ss}, duration<=2 percentage: {len(np.where(interactingduration<=2)[0])/len(interactingduration)}\n')
+                f.write('------------------------\n')
 
                 

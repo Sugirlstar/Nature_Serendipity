@@ -3,7 +3,6 @@ import datetime as dt
 from datetime import date
 from matplotlib import pyplot as plt
 import cmocean
-from HYJfunction import *
 
 from netCDF4 import Dataset
 import pandas as pd
@@ -28,7 +27,8 @@ from matplotlib.lines import Line2D
 
 filepath = "/scratch/bell/hu1029/Data/processed/ERA5_Z500_6hr_1979_2021_1dg.nc"
 ds = xr.open_dataset(filepath)
-
+lats = ds['lat']
+print(lats) # lat increasing!
 z500 = ds['z'].squeeze()/9.80665 # unit: m
 
 print(z500.shape)

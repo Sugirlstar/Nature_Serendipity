@@ -1,0 +1,144 @@
+import xarray as xr
+import numpy as np
+import glob
+from datetime import datetime
+import argparse, os, re
+
+# make the output dir
+OUTDIR = "/scratch/bell/hu1029/Data/processed/ERA5_EKE_total_1979_2021"
+os.makedirs(OUTDIR, exist_ok=True)
+
+def remove_zonal_mean(data, output_file=None):
+    """
+    Removes the zonal mean from a 4D variable (time, lev, lat, lon) in an xarray DataArray or Dataset.
+
+    Parameters:
+        data (xarray.Dataset or xarray.DataArray): Input dataset or data array with dimensions (time, lev, lat, lon).
+        output_file (str, optional): Path to save the output NetCDF file. If None, the result is not saved.
+
+    Returns:
+        xarray.DataArray: Data array with the zonal mean removed.
+    """
+
+    if not isinstance(data, xr.DataArray):
+        data = xr.DataArray(data)  # Convert to DataArray if it's not already
+    
+    # Ensure the input has the correct dimensions
+    required_dims = {"time", "level", "lat", "lon"}
+    if not required_dims.issubset(data.dims):
+        raise ValueError(f"Input data must have dimensions {required_dims}, but got {data.dims}.")
+
+    # Step 1: Calculate the zonal mean (mean along the 'lon' axis)
+    zonal_mean = data.mean(dim="lon")
+
+    # Step 2: Subtract the zonal mean from the original data
+    data_anomaly = data - zonal_mean
+
+    # Step 3: Save to file if requested
+    if output_file:
+        data_anomaly.to_netcdf(output_file)
+        print(f"Zonal mean removed and result saved to '{output_file}'")
+
+    return data_anomaly
+
+# Read multiple yearly NetCDF files for u and v components
+u_file_paths = glob.glob("/depot/wanglei/data/ERA5_uvT/u_component_of_wind_*.nc")  # Replace with the path to your u files
+v_file_paths = glob.glob("/depot/wanglei/data/ERA5_uvT/v_component_of_wind_*.nc")  # Replace with the path to your v files
+u_file_paths.sort()  # Ensure u files are sorted by year
+v_file_paths.sort()  # Ensure v files are sorted by year
+
+# Filter files for the range of target years
+start_year = 1979
+end_year = 2021
+
+filtered_u_files = [f for f in u_file_paths if start_year <= int(re.search(r'\d{4}', f).group(0)) <= end_year ]
+filtered_v_files = [f for f in v_file_paths if start_year <= int(re.search(r'\d{4}', f).group(0)) <= end_year ]
+
+print(filtered_u_files)
+print('----------------------------')
+
+
+for u_file, v_file in zip(filtered_u_files, filtered_v_files):
+
+    year = int(re.search(r'\d{4}', os.path.basename(u_file)).group(0))
+    print(f"Processing year: {year}")
+
+    # check if the output file already exists
+    outfile_check = os.path.join(OUTDIR, f"NH_TROP_{year}.nc")
+    if os.path.exists(outfile_check):
+        print(f"Output file {outfile_check} already exists. Skipping year {year}.", flush=True)
+        continue
+
+    ds_u = xr.open_dataset(u_file)
+    ds_v = xr.open_dataset(v_file)
+    # daily average
+    ds_u_dm = ds_u.resample(time='D').mean()
+    ds_v_dm = ds_v.resample(time='D').mean()
+    # times
+    time = ds_u.variables['time'][2::4]
+    
+    for hemi_key in ['SH','NH']:
+
+        lev = ds_u.variables['level'][:] 
+        lon = ds_u.variables['lon'][:]
+        lev_mask = (lev >= 100) & (lev <= 1000)
+        lev_indices = np.where(lev_mask)[0]
+        lat_all = ds_u.coords['lat'].values
+
+        # half hemisphere lat indices
+        if hemi_key == 'SH':
+            lat_mask = lat_all < 0
+        else:
+            lat_mask = lat_all > 0
+        lat_indices = np.where(lat_mask)[0]
+
+        # get the subset data
+        u_data = ds_u_dm.variables['u'][:, lev_indices, lat_indices, :].astype(np.float32)
+        v_data = ds_v_dm.variables['v'][:, lev_indices, lat_indices, :].astype(np.float32)
+
+        # remove zonal mean and calculate EKE
+        u_anom = remove_zonal_mean(u_data, output_file=None)
+        v_anom = remove_zonal_mean(v_data, output_file=None)
+        energy = 0.5 * (u_anom**2 + v_anom**2)
+
+        # lat and lon values
+        levi = ds_u.coords['level'].values[lev_indices]
+        lati = ds_u.coords['lat'].values[lat_indices]
+        loni = ds_u.coords['lon'].values
+
+        # Create an xarray DataArray with metadata
+        var_name = "EKE"
+        ds_out = xr.Dataset(
+            {
+                var_name: (["time", "level", "lat", "lon"], energy.data)  # Define the variable and its dimensions
+            },
+            coords={
+                "time": time,       # Time dimension
+                "level": levi,     # Vertical level dimension
+                "lat": lati,         # Latitude dimension
+                "lon": loni,         # Longitude dimension
+            },
+        )
+
+        # Add metadata (attributes)
+        ds_out[var_name].attrs = {
+            "units": "m^2 s^-2", 
+            "long_name": "Total eddy kinetic energy",
+            "_FillValue": np.nan,
+        }
+        ds_out.attrs = {
+            "title": "NetCDF Dataset",
+            "institution": "Purdue University",
+            "source": "Generated by Python",
+            "history": f"Created time: {datetime.now().isoformat()}",
+        }
+
+        outfile = os.path.join(OUTDIR, f"{hemi_key}_TROP_{year}.nc")
+        ds_out.to_netcdf(outfile)
+        print(f"Processed year {year} for hemisphere {hemi_key}, saved to {outfile}", flush=True)
+        ds_out.close()
+
+    # close datasets
+    ds_u.close(); ds_v.close()
+    
+    print(f"Completed processing for year {year}", flush=True)

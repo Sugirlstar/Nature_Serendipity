@@ -15,6 +15,7 @@ import matplotlib.path as mpath
 import pickle
 import glob
 from netCDF4 import Dataset
+import xarray as xr
 
 import sys
 sys.stdout.reconfigure(line_buffering=True) # print at once in slurm
@@ -42,7 +43,7 @@ def haversine(lon1, lat1, lon2, lat2): #
 ### Read the Z500-based LWA ###
 lat = np.load("/scratch/bell/hu1029/LGHW/LWA_lat_1979_2021_ERA5_6hr.npy")
 lon = np.load("/scratch/bell/hu1029/LGHW/LWA_lon_1979_2021_ERA5_6hr.npy")
-LWA_td = np.load("/scratch/bell/hu1029/LGHW/LWA_td_1979_2021_ERA5_6hr.npy") 
+LWA_td = np.load("/scratch/bell/hu1029/LGHW/LWA_td_1979_2021_ERA5_6hr_float32.npy") 
 # daily averaged data:
 T = LWA_td.shape[0]
 T4 = T // 4
@@ -79,7 +80,7 @@ for t in np.arange(nday):
     for lo in np.arange(nlon):
         LWA_max_lon[t*nlon+lo] = np.max(LWA_Z[t,:,lo])
 Thresh = np.median(LWA_max_lon[:])
-Duration = 5 
+Duration = 2
 print('Threshold:', Thresh)
 
 ### Wave Event ###
@@ -320,7 +321,7 @@ for d in np.arange(nday-1):
             if track_lat[j]>30:
                 n_north+=1
                 
-        if day+1 >= Duration and n_large_wave>=5 and n_north>=5:
+        if day+1 >= Duration and n_large_wave>=Duration and n_north>=Duration:
             Blocking_lon.append(track_lon)
             Blocking_lat.append(track_lat)
             Blocking_date.append(track_date)
@@ -337,7 +338,7 @@ for d in np.arange(nday-1):
             lat_d[d+dd][track_lat_index[dd]] = np.nan
     print(d)
 
-print('event tracking done')
+print('embryo tracking done')
 
 #%% Save results
 import matplotlib.pyplot as plt
@@ -346,7 +347,7 @@ plt.contourf(lon,lat_NH,B_freq, 20, extend="both", cmap='Reds')
 cb=plt.colorbar()
 plt.xlabel('Longitude')
 plt.ylabel('Latitude')
-plt.savefig('blockingFreq_daily_1979_2021.png')  
+plt.savefig('embryo2days_Freq_daily_1979_2021.png')  
 plt.show()
 plt.close()
 
@@ -357,150 +358,87 @@ print('----------------------- part 2 -----------------------')
 
 #%%
 ### get the blocking peaking date and location and wave activity ###
-Blocking_peaking_date = []
-Blocking_peaking_date_index = []
-Blocking_peaking_lon = []
-Blocking_peaking_lat = []
-Blocking_peaking_LWA = []
-Blocking_duration =[]
-Blocking_velocity = [] 
-Blocking_peaking_lon_wide = []
-Blocking_peaking_area = []
+Embryo_date = []
+Embryo_label = []
 
 for n in np.arange(len(Blocking_date)):
-    start = Date.index(Blocking_date[n][0])
-    end = Date.index(Blocking_date[n][-1])
-    duration = len(Blocking_date[n])
-    LWA_event_max = np.zeros((duration))
+    Embryo_date.append(Blocking_date[n])  ### the peaking date is the first date of the blocking event ###
+    Embryo_label.append(Blocking_label[n]) ### the peaking label is the first label of the blocking event ###
 
-    for d in np.arange(duration):
-        index = start+d
-        lo = np.squeeze(np.array(np.where( lon == Blocking_lon[n][d])))
-        la = np.squeeze(np.array(np.where( lat_NH == Blocking_lat[n][d])))    
-        LWA_event_max[d]  = LWA_Z[index, la, lo]
-        
-    Blocking_peaking_date_index=int(np.squeeze(np.array(np.where( LWA_event_max==np.max(LWA_event_max) ))))
-    Blocking_peaking_LWA.append(np.max(LWA_event_max))
-    Blocking_peaking_date.append(Blocking_date[n][Blocking_peaking_date_index])
-    Blocking_peaking_lon.append(Blocking_lon[n][Blocking_peaking_date_index])
-    Blocking_peaking_lat.append(Blocking_lat[n][Blocking_peaking_date_index])
-    Blocking_peaking_lon_wide.append(Blocking_lon_wide[n][Blocking_peaking_date_index])
-    Blocking_peaking_area.append(Blocking_area[n][Blocking_peaking_date_index])
-    Blocking_duration.append(duration)
-    Blocking_velocity.append( haversine(Blocking_lon[n][0], Blocking_lat[n][0], Blocking_lon[n][-1], Blocking_lat[n][-1])/(duration*24*60*60) )
-    
 #%% Save results
-with open("/scratch/bell/hu1029/LGHW/Blocking_peaking_date_daily", "wb") as fp:
-    pickle.dump(Blocking_peaking_date, fp)
-with open("/scratch/bell/hu1029/LGHW/Blocking_peaking_lon_daily", "wb") as fp:
-    pickle.dump(Blocking_peaking_lon, fp)
-with open("/scratch/bell/hu1029/LGHW/Blocking_peaking_lat_daily", "wb") as fp:
-    pickle.dump(Blocking_peaking_lat, fp)
+with open("/scratch/bell/hu1029/LGHW/Embryo2days_date", "wb") as fp:
+    pickle.dump(Embryo_date, fp)
+with open("/scratch/bell/hu1029/LGHW/Embryo2days_label", "wb") as fp:
+    pickle.dump(Embryo_label, fp)
 
-# S3 ----------------------------------------------------------
-print('----------------------- part 3 -----------------------')
-dlat = dlon = 1
 
-LWA_td_A = np.load("/scratch/bell/hu1029/LGHW/LWA_td_A_1979_2021_ERA5_6hr_float32.npy")
-LWA_td_C = np.load("/scratch/bell/hu1029/LGHW/LWA_td_C_1979_2021_ERA5_6hr_float32.npy") 
+# %% filter the target region ------
 
-# daily averaged:
-T = LWA_td_A.shape[0]
-T4 = T // 4
-LWA_td_A = LWA_td_A[:T4*4]
-LWA_td_A = LWA_td_A.reshape(T4, 4, len(lat), len(lon)).mean(axis=1)
-# daily averaged:
-T = LWA_td_C.shape[0]
-T4 = T // 4
-LWA_td_C = LWA_td_C[:T4*4]
-LWA_td_C = LWA_td_C.reshape(T4, 4, len(lat), len(lon)).mean(axis=1)
+# time management 
+Datestamp = pd.date_range(start="1979-01-01", end="2021-12-31")
+Date0 = pd.DataFrame({'date': pd.to_datetime(Datestamp)})
+timestamp = list(Date0['date'])
+timestamparr = np.array(timestamp)
 
-LWA_Z_A = LWA_td_A[:,0:lat_mid-1,:] # NH only!
-LWA_Z_C = LWA_td_C[:,0:lat_mid-1,:] # NH only!
+typeid = 1
+type_idx = typeid - 1
+rgname = 'ATL'
 
-###### Code for separate 3 types of blocks (ridge, trough, dipole) ######
-#### Method: Focus on the peaking date, calculate the total LWA_AC and LWA_C of the block region ####
-Blocking_ridge_date = [];  Blocking_ridge_lon = []; Blocking_ridge_lat=[];  Blocking_ridge_peaking_date = [];   Blocking_ridge_peaking_lon = []; Blocking_ridge_peaking_lat=[];  Blocking_ridge_duration = [];  Blocking_ridge_velocity = [];    Blocking_ridge_area = [];   Blocking_ridge_peaking_LWA = [];   Blocking_ridge_A = []; Blocking_ridge_C = [];   Blocking_ridge_label =[]
-Blocking_trough_date = []; Blocking_trough_lon =[]; Blocking_trough_lat=[]; Blocking_trough_peaking_date = [];  Blocking_trough_peaking_lon =[]; Blocking_trough_peaking_lat=[]; Blocking_trough_duration = []; Blocking_trough_velocity = [];   Blocking_trough_area = [];  Blocking_trough_peaking_LWA = [];  Blocking_trough_A = []; Blocking_trough_C = []; Blocking_trough_label =[]
-Blocking_dipole_date = []; Blocking_dipole_lon =[]; Blocking_dipole_lat=[]; Blocking_dipole_peaking_date = [];  Blocking_dipole_peaking_lon =[]; Blocking_dipole_peaking_lat=[]; Blocking_dipole_duration= []; Blocking_dipole_velocity =[];    Blocking_dipole_area = [];   Blocking_dipole_peaking_LWA = [];  Blocking_dipole_A = []; Blocking_dipole_C = []; Blocking_dipole_label = []
-lat_range=int(int((90-np.max(Blocking_peaking_lat))/dlat)*2+1)
-lon_range=int(30/dlon)+1
+# read in lat and lon for LWA
+lat = np.load("/scratch/bell/hu1029/LGHW/LWA_lat_1979_2021_ERA5_6hr.npy")
+lon = np.load("/scratch/bell/hu1029/LGHW/LWA_lon_1979_2021_ERA5_6hr.npy")
+lat_mid = int(len(lat)/2) + 1 
+Blklon = lon
+if rgname == 'SP':
+    Blklat = lat[lat_mid:len(lat)]
+    print(Blklat)
+else:
+    Blklat = lat[0:lat_mid-1]
+    print(Blklat)
 
-for n in np.arange(len(Blocking_lon)):
+# Check each blocking event, to see if it's within the target region
+ATLlist = []
+print(type_idx,flush=True)
+print(f'Type{type_idx+1}, {rgname}, -------------filtering--------------',flush=True)
+blocking_array = np.zeros((len(timestamp), len(Blklat), len(Blklon)),dtype=np.bool_)
+blockingID_array = np.full((len(timestamp), len(Blklat), len(Blklon)),fill_value=-1, dtype=np.int32)
 
-    LWA_AC_sum = 0
-    LWA_C_sum = 0
-    Blocking_A = []
-    Blocking_C = []
-        
-    ### peaking date information ###
-    peaking_date_index = Date.index(Blocking_peaking_date[n])
-    peaking_lon_index = np.squeeze(np.array(np.where( lon[:]==Blocking_peaking_lon[n])))
-    peaking_lat_index = np.squeeze(np.array(np.where( lat_NH[:]==Blocking_peaking_lat[n]))) 
-    
-    t = np.squeeze(np.where(np.array(Blocking_date[n]) == np.array(Blocking_peaking_date[n] )))
-    
-    LWA_max = LWA_Z[peaking_date_index,peaking_lat_index,peaking_lon_index]
+for event_idx in range(len(Embryo_date)):
 
-    ### date LWA_AC and  date LWA_C ###
-    LWA_AC  = LWA_Z_A[peaking_date_index,:,:]
-    LWA_C  = LWA_Z_C[peaking_date_index,:,:]
-    
-    ### shift the field to make the block center location at the domain center ###
-    LWA_AC = np.roll(LWA_AC, int(nlon/2)-peaking_lon_index, axis=1)
-    LWA_C = np.roll(LWA_C,   int(nlon/2)-peaking_lon_index, axis=1)
-    WE = np.roll(Blocking_label[n][t], int(nlon/2)-peaking_lon_index, axis=1)
-    lon_roll = np.roll(lon,   int(nlon/2)-peaking_lon_index)
+    peakinglat = peakinglatList[event_idx]  # the peaking latitude
+    peakinglon = peakinglonList[event_idx]  # the peaking longitude
 
-    LWA_AC = LWA_AC[  :, int(nlon/2)-int(lon_range/2):int(nlon/2)+int(lon_range/2)+1]
-    LWA_C = LWA_C[    :, int(nlon/2)-int(lon_range/2):int(nlon/2)+int(lon_range/2)+1]
-    WE = WE[   :, int(nlon/2)-int(lon_range/2):int(nlon/2)+int(lon_range/2)+1]       ### Note that we need to confine the blocking region to +-15 degrees
-    
-    LWA_AC_d = np.zeros((nlat_NH, lon_range))
-    LWA_C_d = np.zeros((nlat_NH, lon_range))
-    LWA_AC_d[WE == True]  = LWA_AC[WE== True]
-    LWA_C_d[WE == True]  =  LWA_C[WE == True]
-    
-    LWA_AC_sum += LWA_AC_d.sum()
-    LWA_C_sum += LWA_C_d.sum()
-    Blocking_A.append(LWA_AC_d.sum())
-    Blocking_C.append(LWA_C_d.sum())
+    event_dates = Blocking_diversity_date[event_idx] # a list of dates
 
-### if the anticyclonic LWA is much stronger than cytclonic LWA, then it is defined as ridge ###
-### if the anticyclonic LWA is comparable with cyclonic LWA, then it is defined as dipole ###
-### if the anticyclonic LWA is weaker than cyclonic LWA, then it is defined as trough events ###
-    if LWA_AC_sum > 10 * LWA_C_sum :
-        Blocking_ridge_date.append(Blocking_date[n]);                 Blocking_ridge_lon.append(Blocking_lon[n]);                  Blocking_ridge_lat.append(Blocking_lat[n])
-        Blocking_ridge_peaking_date.append(Blocking_peaking_date[n]); Blocking_ridge_peaking_lon.append(Blocking_peaking_lon[n]);  Blocking_ridge_peaking_lat.append(Blocking_peaking_lat[n]); Blocking_ridge_peaking_LWA.append(LWA_max)
-        Blocking_ridge_duration.append(len(Blocking_date[n]));        Blocking_ridge_velocity.append(Blocking_velocity[n]);        Blocking_ridge_area.append(Blocking_peaking_area[n]); Blocking_ridge_label.append(Blocking_label[n])
-        Blocking_ridge_A.append(Blocking_A);                          Blocking_ridge_C.append(Blocking_C)
-    elif LWA_C_sum > 2 * LWA_AC_sum:
-        Blocking_trough_date.append(Blocking_date[n]);                 Blocking_trough_lon.append(Blocking_lon[n]);                 Blocking_trough_lat.append(Blocking_lat[n])
-        Blocking_trough_peaking_date.append(Blocking_peaking_date[n]); Blocking_trough_peaking_lon.append(Blocking_peaking_lon[n]); Blocking_trough_peaking_lat.append(Blocking_peaking_lat[n]); Blocking_trough_peaking_LWA.append(LWA_max)
-        Blocking_trough_duration.append(len(Blocking_date[n]));        Blocking_trough_velocity.append(Blocking_velocity[n]);       Blocking_trough_area.append(Blocking_peaking_area[n]); Blocking_trough_label.append(Blocking_label[n])
-        Blocking_trough_A.append(Blocking_A);                          Blocking_trough_C.append(Blocking_C)
+    timeindex = np.where(np.isin(timestamparr, event_dates))[0]  # find the time index in the total len
+    blklabelarr = np.array(Blocking_diversity_label[type_idx][event_idx]) # the 3d array of blocking label
+
+    # logic2: based on the peaking location
+    lat_in = lat_min <= peakinglat <= lat_max
+    if lon_min <= lon_max:
+        lon_in = lon_min <= peakinglon <= lon_max
     else:
-        Blocking_dipole_date.append(Blocking_date[n]);                 Blocking_dipole_lon.append(Blocking_lon[n]);                 Blocking_dipole_lat.append(Blocking_lat[n])
-        Blocking_dipole_peaking_date.append(Blocking_peaking_date[n]); Blocking_dipole_peaking_lon.append(Blocking_peaking_lon[n]); Blocking_dipole_peaking_lat.append(Blocking_peaking_lat[n]); Blocking_dipole_peaking_LWA.append(LWA_max)
-        Blocking_dipole_duration.append(len(Blocking_date[n]));        Blocking_dipole_velocity.append(Blocking_velocity[n]);       Blocking_dipole_area.append(Blocking_peaking_area[n]); Blocking_dipole_label.append(Blocking_label[n])
-        Blocking_dipole_A.append(Blocking_A);                          Blocking_dipole_C.append(Blocking_C)
+        lon_in = (peakinglon >= lon_min) or (peakinglon <= lon_max)
+        
+    if(lat_in and lon_in):
+        ATLlist.append(event_idx)
+        blocking_array[timeindex, :, :] = np.logical_or(blocking_array[timeindex, :, :],blklabelarr) # fill into the 3d array
+        t_idx, y_idx, x_idx = np.where(blklabelarr > 0)
+        abs_t_idx = timeindex[t_idx]
+        blockingID_array[abs_t_idx, y_idx, x_idx] = int(event_idx) # fill into the event id values
+        print('Event_idx in the target region: ',event_idx,flush=True)
 
-    print(n)
     
-Blocking_diversity_date= []; Blocking_diversity_peaking_date= []; Blocking_diversity_peaking_lon= [];  Blocking_diversity_peaking_lat=[]; Blocking_diversity_label = []
-Blocking_diversity_date.append(Blocking_ridge_date);  Blocking_diversity_peaking_date.append(Blocking_ridge_peaking_date); Blocking_diversity_peaking_lat.append(Blocking_ridge_peaking_lat); Blocking_diversity_peaking_lon.append(Blocking_ridge_peaking_lon); Blocking_diversity_label.append(Blocking_ridge_label)
-Blocking_diversity_date.append(Blocking_trough_date); Blocking_diversity_peaking_date.append(Blocking_trough_peaking_date); Blocking_diversity_peaking_lat.append(Blocking_trough_peaking_lat); Blocking_diversity_peaking_lon.append(Blocking_trough_peaking_lon); Blocking_diversity_label.append(Blocking_trough_label)    
-Blocking_diversity_date.append(Blocking_dipole_date); Blocking_diversity_peaking_date.append(Blocking_dipole_peaking_date); Blocking_diversity_peaking_lat.append(Blocking_dipole_peaking_lat); Blocking_diversity_peaking_lon.append(Blocking_dipole_peaking_lon); Blocking_diversity_label.append(Blocking_dipole_label)
+# get the blocking days 
+flagnum = np.nansum(blocking_array, axis=(1,2))
 
-with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_date_daily", "wb") as fp:
-    pickle.dump(Blocking_diversity_date, fp)
-with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_label_daily", "wb") as fp:
-    pickle.dump(Blocking_diversity_label, fp)
-with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_peaking_date_daily", "wb") as fp:
-    pickle.dump(Blocking_diversity_peaking_date, fp)
-with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_peaking_lon_daily", "wb") as fp:
-    pickle.dump(Blocking_diversity_peaking_lon, fp)
-with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_peaking_lat_daily", "wb") as fp:
-    pickle.dump(Blocking_diversity_peaking_lat, fp)
+print(f"Total blocking length, Type{type_idx+1}_{rgname}: {len(Blockingday)}")
+# save the blocking array 
+np.save(f"/scratch/bell/hu1029/LGHW/embryo2days_FlagmaskClusters_Type{type_idx+1}_{rgname}.npy", blocking_array)
+# save the blocking id list
+with open(f"/scratch/bell/hu1029/LGHW/embryo2days_FlagmaskClustersEventList_Type{type_idx+1}_{rgname}", "wb") as fp:
+    pickle.dump(ATLlist, fp)
+# save the id array
+np.save(f"/scratch/bell/hu1029/LGHW/BlockingClustersEventID_Type{type_idx+1}_{rgname}.npy", blockingID_array)
 
-print('all done')
+print('blockingarr saved ----------------',flush=True)

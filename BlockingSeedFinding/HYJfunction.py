@@ -20,7 +20,7 @@ def create_Map(lon, lat, M, minv, maxv, interv=7, continterv = None, fill=True, 
 
     # lon = ((lon + 180) % 360) - 180
     # lon = lon-180
-    proj = ccrs.PlateCarree()
+    proj = ccrs.PlateCarree(central_longitude=centralLon)
     img_extent = [leftlon, rightlon, lowerlat, upperlat]
     # If not provided, create a new figure
     if fig is None:

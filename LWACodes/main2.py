@@ -47,6 +47,6 @@ cb=plt.colorbar()
 plt.xlabel('Longitude')
 plt.ylabel('Latitude')
 plt.show()
-plt.save('LWAtotalMean_test.png')
+plt.savefig('LWAtotalMean_test.png')
 plt.close()
 

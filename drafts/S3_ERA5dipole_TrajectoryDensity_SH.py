@@ -51,64 +51,61 @@ def findClosest(lati, latids):
         diff = np.abs(lati - latids)
         return np.argmin(diff) 
 
-# 01 read data --------------------------------------------------------------
-# attributes
-ds = xr.open_dataset('/scratch/bell/hu1029/Data/processed/ERA5_Z500anomaly_subtractseasonal_6hr_1979_2021.nc')
-lon = np.array(ds['lon'])
-lat = np.array(ds['lat'])
-lat = np.flip(lat)
-latNH = lat[(findClosest(0,lat)+1):len(lat)]
-print(latNH)
-
+# time management --------------------------------
 timesarr = np.array(ds['time'])
 datetime_array = pd.to_datetime(timesarr)
 timei = list(datetime_array)
 timeiarr = np.array(timei)
 
+# 01 read data --------------------------------------------------------------
+# F128 attributes
+ds = xr.open_dataset('/scratch/bell/hu1029/Data/processed/ERA5_Z500anomaly_subtractseasonal_6hr_1979_2021.nc')
+lonF128 = np.array(ds['lon'])
+latF128 = np.array(ds['lat'])
+latF128 = np.flip(latF128) # lat is in increasing order now (-90~90)
+latF128mid = findClosest(0,latF128)+1
+latF128_NH = latF128[0:latF128mid]
+print(latF128_NH) # increasing order (-89.46282157~-0.35087653)
+
+# 1dg attributes
+ds1dg = xr.open_dataset("/scratch/bell/hu1029/Data/processed/ERA5_Z500_6hr_1979_2021_1dg.nc")
+lat1dg = np.array(ds1dg['lat']) # increasing order (-90~90)
+lon1dg = np.array(ds1dg['lon'])
+lat1dg_mid = int(len(lat1dg)/2) + 1 #91
+lat1dgNH = lat1dg[0:lat1dg_mid-1] # increasing order (-90~-1), exclude equator
+print(lat1dgNH)
+
 # ACtracks ===========================
 # tracks
-with open('/scratch/bell/hu1029/LGHW/ACZanom_allyearTracks.pkl', 'rb') as file:
+with open('/scratch/bell/hu1029/LGHW/ACZanom_allyearTracks_SH.pkl', 'rb') as file:
     track_data = pickle.load(file)
 
 # extract all the point elements
 track_id_list = np.array([track_id for track_id, track in track_data for _ in track]) 
 time_list = np.array([time for _, track in track_data for (time, _, _) in track])
-y_list = np.array([y for _, track in track_data for (_, y, _) in track]) #lon
-x_list = np.array([x for _, track in track_data for (_, _, x) in track]) #lat
+y_list = np.array([y for _, track in track_data for (_, y, _) in track]) #lon values
+x_list = np.array([x for _, track in track_data for (_, _, x) in track]) #lat values
 
 print("AC track total number:", len(time_list))
 # make an array representing the trackpoint density
-trackPoints_array = np.zeros((len(datetime_array), len(latNH), len(lon)))
+trackPoints_array = np.zeros((len(datetime_array), len(latF128_NH), len(lonF128)))
 time_indices = np.searchsorted(timeiarr, time_list)
-lat_indices = np.array([findClosest(x, latNH) for x in x_list])
-lon_indices = np.array([findClosest(y, lon) for y in y_list])
+lat_indices = np.array([findClosest(x, latF128_NH) for x in x_list])
+lon_indices = np.array([findClosest(y, lonF128) for y in y_list])
 # count numbers save in trackPoints_array
 np.add.at(trackPoints_array, (time_indices, lat_indices, lon_indices), 1)
 
-np.save('/scratch/bell/hu1029/LGHW/ACtrackPoints_array.npy', trackPoints_array)
+np.save('/scratch/bell/hu1029/LGHW/ACtrackPoints_array_SH.npy', trackPoints_array)
 trackPoints_frequency = np.nansum(trackPoints_array, axis=0) 
 
 # get the track ID array
-trackPoints_ID = np.zeros((len(datetime_array), len(latNH), len(lon)))
+trackPoints_ID = np.zeros((len(datetime_array), len(latF128_NH), len(lonF128)))
 for t, la, lo, tid in zip(time_indices, lat_indices, lon_indices, track_id_list):
     trackPoints_ID[t, la, lo] = tid
-np.save('/scratch/bell/hu1029/LGHW/ACtrackPoints_TrackIDarray.npy', trackPoints_ID)
-
-# get the middle point
-trackPoints_middle = np.zeros((len(datetime_array), len(latNH), len(lon)))
-# divide the points by track_id
-tid_dict = defaultdict(list)
-for t, la, lo, tid in zip(time_indices, lat_indices, lon_indices, track_id_list):
-    tid_dict[tid].append((t, la, lo))
-for tid, points in tid_dict.items():
-    points.sort(key=lambda x: x[0])
-    mid_idx = len(points) // 2
-    t, la, lo = points[mid_idx]
-    trackPoints_middle[t, la, lo] = tid
-np.save('/scratch/bell/hu1029/LGHW/ACtrackPoints_middle.npy', trackPoints_middle)
+np.save('/scratch/bell/hu1029/LGHW/ACtrackPoints_TrackIDarray_SH.npy', trackPoints_ID)
 
 # plot the map -------------------
-fig, ax, cf = create_Map(lon,latNH,trackPoints_frequency,fill=True,fig=None,
+fig, ax, cf = create_Map(lonF128,latF128_NH,trackPoints_frequency, lowerlat=-90, upperlat=-20, fill=True,fig=None,
                             minv=0, maxv=52, interv=11, figsize=(12,5),
                             centralLon=0, colr='PuBu', extend='max',title=f'AC tracks density')
 addSegments(ax,[(330,45),(30,45),(30,75),(330,75),(330,45)],colr='black',linewidth=2)
@@ -116,12 +113,12 @@ plt.colorbar(cf,ax=ax,orientation='horizontal',label='Frequency (days)',fraction
 
 plt.show()
 plt.tight_layout()
-plt.savefig(f'ERA5dipole_AC_pointFrequency.png')
+plt.savefig(f'ERA5dipole_AC_pointFrequency_SH.png')
 plt.close()
 
 # CCtracks ===========================
 # tracks
-with open('/scratch/bell/hu1029/LGHW/CCZanom_allyearTracks.pkl', 'rb') as file:
+with open('/scratch/bell/hu1029/LGHW/CCZanom_allyearTracks_SH.pkl', 'rb') as file:
     track_data = pickle.load(file)
 
 # extract all the point elements
@@ -132,37 +129,24 @@ x_list = np.array([x for _, track in track_data for (_, _, x) in track]) #lat
 
 print("CC track total number:", len(time_list))
 # make an array representing the trackpoint density
-trackPoints_array = np.zeros((len(datetime_array), len(latNH), len(lon)))
+trackPoints_array = np.zeros((len(datetime_array), len(latF128_NH), len(lonF128)))
 time_indices = np.searchsorted(timeiarr, time_list)
-lat_indices = np.array([findClosest(x, latNH) for x in x_list])
-lon_indices = np.array([findClosest(y, lon) for y in y_list])
+lat_indices = np.array([findClosest(x, latF128_NH) for x in x_list])
+lon_indices = np.array([findClosest(y, lonF128) for y in y_list])
 # count numbers save in trackPoints_array 
 np.add.at(trackPoints_array, (time_indices, lat_indices, lon_indices), 1)
 
-np.save('/scratch/bell/hu1029/LGHW/CCtrackPoints_array.npy', trackPoints_array)
+np.save('/scratch/bell/hu1029/LGHW/CCtrackPoints_array_SH.npy', trackPoints_array)
 trackPoints_frequency = np.nansum(trackPoints_array, axis=0) 
 
 # get the track ID array
-trackPoints_ID = np.zeros((len(datetime_array), len(latNH), len(lon)))
+trackPoints_ID = np.zeros((len(datetime_array), len(latF128_NH), len(lonF128)))
 for t, la, lo, tid in zip(time_indices, lat_indices, lon_indices, track_id_list):
     trackPoints_ID[t, la, lo] = tid
-np.save('/scratch/bell/hu1029/LGHW/CCtrackPoints_TrackIDarray.npy', trackPoints_ID)
-
-# get the middle point
-trackPoints_middle = np.zeros((len(datetime_array), len(latNH), len(lon)))
-# divide the points by track_id
-tid_dict = defaultdict(list)
-for t, la, lo, tid in zip(time_indices, lat_indices, lon_indices, track_id_list):
-    tid_dict[tid].append((t, la, lo))
-for tid, points in tid_dict.items():
-    points.sort(key=lambda x: x[0])
-    mid_idx = len(points) // 2
-    t, la, lo = points[mid_idx]
-    trackPoints_middle[t, la, lo] = tid
-np.save('/scratch/bell/hu1029/LGHW/CCtrackPoints_middle.npy', trackPoints_middle)
+np.save('/scratch/bell/hu1029/LGHW/CCtrackPoints_TrackIDarray_SH.npy', trackPoints_ID)
 
 # plot the map -------------------
-fig, ax, cf = create_Map(lon,latNH,trackPoints_frequency,fill=True,fig=None,
+fig, ax, cf = create_Map(lonF128,latF128_NH,trackPoints_frequency, lowerlat=-90, upperlat=-20, fill=True,fig=None,
                             minv=0, maxv=52, interv=11, figsize=(12,5),
                             centralLon=0, colr='PuBu', extend='max',title=f'CC tracks density')
 addSegments(ax,[(330,45),(30,45),(30,75),(330,75),(330,45)],colr='black',linewidth=2)
@@ -170,6 +154,6 @@ plt.colorbar(cf,ax=ax,orientation='horizontal',label='Frequency (days)',fraction
 
 plt.show()
 plt.tight_layout()
-plt.savefig(f'ERA5dipole_CC_pointFrequency.png')
+plt.savefig(f'ERA5dipole_CC_pointFrequency_SH.png')
 plt.close()
 

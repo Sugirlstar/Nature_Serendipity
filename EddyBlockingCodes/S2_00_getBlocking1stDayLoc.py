@@ -32,18 +32,16 @@ from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 
 # %% 00 prepare
 regions = ["ATL", "NP", "SP"]
-seasons = ["DJF", "JJA", "ALL"]
-seasonsmonths = [[12, 1, 2], [6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
+seasons = [ "ALL", "DJF", "JJA"]
+seasonsmonths = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [12, 1, 2], [6, 7, 8]]
 blkTypes = ["Ridge", "Trough", "Dipole"]
-cycTypes = ["CC", "AC"]
+cycTypes = ["AC", "CC"]
 
 # read in LWA
 LWA_td_origin = np.load('/scratch/bell/hu1029/LGHW/LWA_td_1979_2021_ERA5_6hr.npy')  # -90～90, it's from south to north
 LWA_td_origin = LWA_td_origin/100000000 # change the unit to 1e8 
 
 # get the first day and location of each blocking event, output as lists, three types:
-rgname = "NH" # "NH" or "SP"
-ss = "All"
 for typeid in [1,2,3]:
     for rgname in regions:
         for ss in seasons:
@@ -70,19 +68,19 @@ for typeid in [1,2,3]:
             timei = list(datetime_array)
             print(len(timei))
 
-            with open(f'/scratch/bell/hu1029/LGHW/BlockingFlagmaskClustersEventList_Type{typeid}_{rgname}_{ss}', "rb") as f:
+            with open(f'/scratch/bell/hu1029/LGHW/SD_BlockingFlagmaskClustersEventList_Type{typeid}_{rgname}_{ss}', "rb") as f:
                 ATLlist = pickle.load(f)
 
             # read in all blocking events date list and label array
             if rgname == "SP":
-                with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_date_daily_SH", "rb") as fp:
+                with open("/scratch/bell/hu1029/LGHW/SD_Blocking_diversity_date_daily_SH", "rb") as fp:
                     Blocking_diversity_date = pickle.load(fp)
-                with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_label_daily_SH", "rb") as fp:
+                with open("/scratch/bell/hu1029/LGHW/SD_Blocking_diversity_label_daily_SH", "rb") as fp:
                     Blocking_diversity_label = pickle.load(fp)
             else:
-                with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_date_daily", "rb") as fp:
+                with open("/scratch/bell/hu1029/LGHW/SD_Blocking_diversity_date_daily_NH", "rb") as fp:
                     Blocking_diversity_date = pickle.load(fp)
-                with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_label_daily", "rb") as fp:
+                with open("/scratch/bell/hu1029/LGHW/SD_Blocking_diversity_label_daily_NH", "rb") as fp:
                     Blocking_diversity_label = pickle.load(fp)
 
             # event date and timeid list
@@ -115,5 +113,5 @@ for typeid in [1,2,3]:
                 pickle.dump(lat_values, fp)
             with open(f"/scratch/bell/hu1029/LGHW/Blocking1stdayLonList_blkType{typeid}_{rgname}_{ss}", "wb") as fp:
                 pickle.dump(lon_values, fp)
-    
+
 print('done')

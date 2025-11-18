@@ -42,10 +42,10 @@ sys.stdout.reconfigure(line_buffering=True) # print at once in slurm
 
 # %% 00 function preparation --------------------------------
 regions = ["ATL", "NP", "SP"]
-seasons = ["DJF", "JJA", "ALL"]
-seasonsmonths = [[12, 1, 2], [6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
+seasons = [ "ALL", "DJF", "JJA"]
+seasonsmonths = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [12, 1, 2], [6, 7, 8]]
 blkTypes = ["Ridge", "Trough", "Dipole"]
-cycTypes = ["CC", "AC"]
+cycTypes = ["AC","CC"]
 
 def Region_ERA(regionname): 
     if regionname == "ATL": 
@@ -97,10 +97,6 @@ def extendList(desired_length,centorinlist,test):
     return targetlist
 
 # %% 01 get the data ------------------------
-typeid = 1
-rgname = "ATL"
-ss = "ALL"
-cyc = "AC"
 
 # read in the track's timesteps (6-hourly)
 ds = xr.open_dataset('/scratch/bell/hu1029/Data/processed/ERA5_Z500anomaly_subtractseasonal_6hr_1979_2021.nc')
@@ -127,7 +123,7 @@ for typeid in [1,2,3]:
                 print(latLWA, flush=True)
                 lonLWA = lon 
 
-                blockingEidArr = np.load(f'/scratch/bell/hu1029/LGHW/BlockingClustersEventID_Type{typeid}_{rgname}_{ss}.npy') # the blocking event index array
+                blockingEidArr = np.load(f'/scratch/bell/hu1029/LGHW/SD_BlockingClustersEventID_Type{typeid}_{rgname}_{ss}.npy') # the blocking event index array
                 # transfer to 6-hourly
                 blockingEidArr = np.flip(blockingEidArr, axis=1) # flip the lat
                 blockingEidArr = np.repeat(blockingEidArr, 4, axis=0) # turn daily LWA to 6-hourly (simply repeat the daily value 4 times)
@@ -137,7 +133,7 @@ for typeid in [1,2,3]:
                     BlkeventLWA = pickle.load(f) 
 
                 # the id of each blocking event (not all events! just the events within the target region)
-                with open(f'/scratch/bell/hu1029/LGHW/BlockingFlagmaskClustersEventList_Type{typeid}_{rgname}_{ss}', "rb") as f:
+                with open(f'/scratch/bell/hu1029/LGHW/SD_BlockingFlagmaskClustersEventList_Type{typeid}_{rgname}_{ss}', "rb") as f:
                     blkEindex = pickle.load(f)
                 blkEindex = np.array(blkEindex)
 
@@ -148,9 +144,9 @@ for typeid in [1,2,3]:
                     with open(f'/scratch/bell/hu1029/LGHW/{cyc}Zanom_allyearTracks_SH.pkl', 'rb') as file:
                         track_data = pickle.load(file)
                 else:
-                    with open(f'/scratch/bell/hu1029/LGHW/{cyc}TrackLWA_1979_2021.pkl', 'rb') as file:
+                    with open(f'/scratch/bell/hu1029/LGHW/{cyc}TrackLWA_1979_2021_NH.pkl', 'rb') as file:
                         LWAtrack = pickle.load(file)
-                    with open(f'/scratch/bell/hu1029/LGHW/{cyc}Zanom_allyearTracks.pkl', 'rb') as file:
+                    with open(f'/scratch/bell/hu1029/LGHW/{cyc}Zanom_allyearTracks_NH.pkl', 'rb') as file:
                         track_data = pickle.load(file)
 
                 # EddyNumber = np.load(f'/scratch/bell/hu1029/LGHW/BlockingType{typeid}_EventEddyNumber_1979_2021_{rgname}_{ss}_{cyc}.npy')
@@ -215,6 +211,10 @@ for typeid in [1,2,3]:
 
                         N += 1 # add one interaction event
 
+                # save the AVG LWA series
+                np.save(f'/scratch/bell/hu1029/LGHW/MiddleEddiesTrackLWAseries_Type{typeid}_{rgname}_{ss}_{cyc}_composites.npy', np.array(TrackAVGLWAlist))
+                np.save(f'/scratch/bell/hu1029/LGHW/MiddleEddiesBlkLWAseries_Type{typeid}_{rgname}_{ss}_{cyc}_composites.npy', np.array(BlkAVGLWAlist))
+
                 TrackAVGLWAarr = np.nanmean(np.array(TrackAVGLWAlist), axis=0) # average LWA for all tracks
                 BlkAVGLWAarr = np.nanmean(np.array(BlkAVGLWAlist), axis=0) # average LWA for all blockings
 
@@ -245,6 +245,6 @@ for typeid in [1,2,3]:
 
                 plt.tight_layout()
                 plt.show()
-                plt.savefig(f'./LWAseries/MiddleEddiesLWAseries_Type{typeid}_{rgname}_{ss}_{cyc}_composites.png', dpi=300, bbox_inches='tight')
+                plt.savefig(f'./MiddleEddiesLWAseries_Type{typeid}_{rgname}_{ss}_{cyc}_composites.png', dpi=300, bbox_inches='tight')
 
                 print(f'Fig saved: Type{typeid}_{rgname}_{ss}_{cyc}', flush=True)

@@ -49,10 +49,10 @@ for folder in folders:
 
     allyear_Tracks.extend(updated_data)
 
-with open('/scratch/bell/hu1029/LGHW/CCZanom_allyearTracks.pkl', 'wb') as file:
+with open('/scratch/bell/hu1029/LGHW/CCZanom_allyearTracks_NH.pkl', 'wb') as file:
     pickle.dump(allyear_Tracks, file)  
 
-with open('/scratch/bell/hu1029/LGHW/CCZanom_allyearTracks.pkl', 'rb') as file:
+with open('/scratch/bell/hu1029/LGHW/CCZanom_allyearTracks_NH.pkl', 'rb') as file:
     allyearTracks = pickle.load(file)
 
 print(allyearTracks[0])
@@ -98,10 +98,10 @@ for folder in folders:
 
     allyear_Tracks.extend(updated_data)
 
-with open('/scratch/bell/hu1029/LGHW/ACZanom_allyearTracks.pkl', 'wb') as file:
+with open('/scratch/bell/hu1029/LGHW/ACZanom_allyearTracks_NH.pkl', 'wb') as file:
     pickle.dump(allyear_Tracks, file)  
 
-with open('/scratch/bell/hu1029/LGHW/ACZanom_allyearTracks.pkl', 'rb') as file:
+with open('/scratch/bell/hu1029/LGHW/ACZanom_allyearTracks_NH.pkl', 'rb') as file:
     allyearTracks = pickle.load(file)
 
 print(allyearTracks[0])

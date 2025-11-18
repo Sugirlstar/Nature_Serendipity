@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH -A ccrc
+#SBATCH --partition=cpu
 #SBATCH --job-name=multiprocess_TRACK
 #SBATCH --output=multiprocess_%j.out
 #SBATCH --error=multiprocess__%j.err
@@ -12,6 +13,8 @@ module load parallel
 
 cd /scratch/bell/hu1029/LGHW/TRACK/track-TRACK-1.5.4
 export PATH="${PATH}:."
+chmod +x ./master bin/track.linux
+chmod +x ./config.RUN
 
 DATA="/scratch/bell/hu1029/LGHW/TRACK/TRACK_inputdata_geopotentialAnomaly"
 TRACKS="${DATA}/TRACKS_SH"

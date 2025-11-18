@@ -353,6 +353,9 @@ plt.savefig('blockingFreq_daily_1979_2021_SH.png')
 plt.show()
 plt.close()
 
+np.save('/scratch/bell/hu1029/LGHW/B_freq_SH.npy', B_freq)
+np.save('/scratch/bell/hu1029/LGHW/B_freq2_SH.npy', B_freq2)
+
 print('results saved!')
 
 # S2 --------------------------------------------------------------

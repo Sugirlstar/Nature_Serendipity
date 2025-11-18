@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH -A ccrc
+#SBATCH --partition=cpu
 #SBATCH --job-name=multiprocess_TRACK
 #SBATCH --output=multiprocess_%j.out
 #SBATCH --error=multiprocess__%j.err

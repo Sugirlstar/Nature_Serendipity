@@ -112,26 +112,13 @@ print(latLWA, flush=True)
 print('LWA shape: ', LWA_td.shape, flush=True)
 lonLWA = lon 
 
-# get the event's label
-if rgname == "SP":
-    with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_label_daily_SH", "rb") as fp:
-        Blocking_diversity_label = pickle.load(fp)
-    with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_date_daily_SH", "rb") as fp:
-        Blocking_diversity_date = pickle.load(fp)
-else:
-    with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_label_daily", "rb") as fp:
-        Blocking_diversity_label = pickle.load(fp)
-    with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_date_daily", "rb") as fp:
-        Blocking_diversity_date = pickle.load(fp)
-Blocking_diversity_label = Blocking_diversity_label[typeid-1] # get the blocking event list for the typeid
-Blocking_diversity_date = Blocking_diversity_date[typeid-1] # get the blocking event date for the typeid
-
+# 6-hourly Blocking event id array
 blockingEidArr = np.load(f'/scratch/bell/hu1029/LGHW/BlockingClustersEventID_Type{typeid}_{rgname}_{ss}.npy') # the blocking event index array
 # transfer to 6-hourly
 blockingEidArr = np.flip(blockingEidArr, axis=1) # flip the lat
 blockingEidArr = np.repeat(blockingEidArr, 4, axis=0) # turn daily LWA to 6-hourly (simply repeat the daily value 4 times)
 
-# read in the event's LWA list
+# read in the event's LWA list, length is the number of blocking events
 with open(f"/scratch/bell/hu1029/LGHW/BlockEventDailyLWAList_1979_2021_Type{typeid}_{rgname}_{ss}.pkl", "rb") as f:
     BlkeventLWA = pickle.load(f) 
 
@@ -151,7 +138,7 @@ else:
     with open(f'/scratch/bell/hu1029/LGHW/{cyc}Zanom_allyearTracks.pkl', 'rb') as file:
         track_data = pickle.load(file)
 
-EddyNumber = np.load(f'/scratch/bell/hu1029/LGHW/BlockingType{typeid}_EventEddyNumber_1979_2021_{rgname}_{ss}_{cyc}.npy')
+# the index of the bloking each track interact with. length =  total length of the tracks
 eddyBlockIndex = np.load(f'/scratch/bell/hu1029/LGHW/TrackBlockingType{typeid}_Index_1979_2021_{rgname}_{ss}_{cyc}.npy')
     
 

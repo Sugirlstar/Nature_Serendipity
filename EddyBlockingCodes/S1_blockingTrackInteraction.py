@@ -29,10 +29,10 @@ from itertools import product
 
 # %% 00 prepare the environment and functions
 regions = ["ATL", "NP", "SP"]
-seasons = ["DJF", "JJA", "ALL"]
-seasonsmonths = [[12, 1, 2], [6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
+seasons = ["ALL", "DJF", "JJA"]
+seasonsmonths = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],[12, 1, 2], [6, 7, 8]]
 blkTypes = ["Ridge", "Trough", "Dipole"]
-cycTypes = ["CC", "AC"]
+cycTypes = ["AC", "CC"]
 
 def Region_ERA(regionname): 
     if regionname == "ATL": 
@@ -81,6 +81,8 @@ def process_combination(args):
             if any(tag in line for line in f):
                 print(f"[SKIP] {tag} already processed.")
                 return  # skip
+            else:
+                print(f"[PROCESSING] {tag} ")
 
     # %% 01 read lat and lon --------------------------------------------------------------
     # attributes for TRACKs
@@ -91,9 +93,11 @@ def process_combination(args):
     lat_mid = int(len(lat)/2) + 1 
     if rgname == "SP":
         Blklat = lat[lat_mid:len(lat)]
+        k = 'SH'
     else:
         Blklat = lat[0:lat_mid-1]
-    Blklat = np.flip(Blklat)
+        k = 'NH'
+    Blklat = np.flip(Blklat) # make the lat increasing
     Blklon = lon
 
     # Time management
@@ -104,34 +108,27 @@ def process_combination(args):
     timei = list(datetime_array)
     
     # load tracks
-    if rgname == "SP":
-        with open(f'/scratch/bell/hu1029/LGHW/{cyc}Zanom_allyearTracks_SH.pkl', 'rb') as file:
-            track_data = pickle.load(file)
-    else:
-        with open(f'/scratch/bell/hu1029/LGHW/{cyc}Zanom_allyearTracks.pkl', 'rb') as file:
-            track_data = pickle.load(file)
+    with open(f'/scratch/bell/hu1029/LGHW/{cyc}Zanom_allyearTracks_{k}.pkl', 'rb') as file:
+        track_data = pickle.load(file)
+
     print('track loaded-----------------------',flush=True)
 
     # read in blocking event lists
-    if rgname == "SP":
-        with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_date_daily_SH", "rb") as fp:
-            Blocking_diversity_date = pickle.load(fp)
-    else:
-        with open("/scratch/bell/hu1029/LGHW/Blocking_diversity_date_daily", "rb") as fp:
-            Blocking_diversity_date = pickle.load(fp)
+    with open(f"/scratch/bell/hu1029/LGHW/SD_Blocking_diversity_date_daily_{k}", "rb") as fp:
+        Blocking_diversity_date = pickle.load(fp)
     Blocking_diversity_date = Blocking_diversity_date[typeid-1] # get the blocking event list for the typeid
 
     # the id of each blocking event (not all events! just the events within the target region)
-    with open(f'/scratch/bell/hu1029/LGHW/BlockingFlagmaskClustersEventList_Type{typeid}_{rgname}_{ss}', "rb") as f:
+    with open(f'/scratch/bell/hu1029/LGHW/SD_BlockingFlagmaskClustersEventList_Type{typeid}_{rgname}_{ss}', "rb") as f:
         targetblockingeventID = pickle.load(f)
     print(f'blocking id of each event (10 for example): {targetblockingeventID[:10]}',flush=True)
     targetblockingeventID = np.array(targetblockingeventID)
 
     # %% 02 eddy-blocking interaction identify --------------------------------------------------------------
     # 001 transfer to 6-hourly
-    blockingSec2 = np.load(f'/scratch/bell/hu1029/LGHW/BlockingClustersEventID_Type{typeid}_{rgname}_{ss}.npy') # the blocking event index array
+    blockingSec2 = np.load(f'/scratch/bell/hu1029/LGHW/SD_BlockingClustersEventID_Type{typeid}_{rgname}_{ss}.npy') # the blocking event index array
     # transfer to 6-hourly
-    blockingSec2 = np.flip(blockingSec2, axis=1) # flip the lat
+    blockingSec2 = np.flip(blockingSec2, axis=1) # flip to make the lat increasing
     BlockingEIndex = np.repeat(blockingSec2, 4, axis=0) # turn daily LWA to 6-hourly (simply repeat the daily value 4 times)
 
     # 002 blocking event characteristics: persistence
@@ -199,7 +196,7 @@ def process_combination(args):
                         EddyNumber[nnidx] += 1
                     tp = 'E'
                     print(f'{bkids}: Edge Identified',flush=True)
-        
+
         # 002 Absorbed
         if np.isnan(blockingValue[0]) and blockingValue[-1] >= 0:
             print(blockingValue,flush=True)
@@ -224,17 +221,35 @@ def process_combination(args):
         tpIndex[tracknum] = tp
         tracknum += 1
 
-    with open(f"Interaction_summary.txt", "a") as f:  
-        f.write(f'Blocking type{typeid} - {cyc} - {rgname} - {ss} total length: {len(eventPersistence)}\n')
-        f.write(f'Length of the Through interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(ThroughTrack)}\n')
-        f.write(f'Length of the Edge interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(EdgeTrack)}\n')
-        f.write(f'Length of the Absorbed interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(AbsorbedTrack)}\n')
-        f.write(f'Length of the total interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(ThroughTrack)+len(AbsorbedTrack)+len(EdgeTrack)}\n')
-        f.write('-----------------------------------------------------\n')
+    # if tag already in the summary file, skip
+    if os.path.exists('Interaction_summary.txt'):
+        with open('Interaction_summary.txt', "r") as f:
+            if not any(tag in line for line in f):
+                with open(f"Interaction_summary.txt", "a") as f:  
+                    f.write(f'Blocking type{typeid} - {cyc} - {rgname} - {ss} total length: {len(eventPersistence)}\n')
+                    f.write(f'Length of the Through interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(ThroughTrack)}\n')
+                    f.write(f'Length of the Edge interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(EdgeTrack)}\n')
+                    f.write(f'Length of the Absorbed interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(AbsorbedTrack)}\n')
+                    f.write(f'Length of the total interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(ThroughTrack)+len(AbsorbedTrack)+len(EdgeTrack)}\n')
+                    f.write('-----------------------------------------------------\n')
+    else:
+        with open(f"Interaction_summary.txt", "a") as f:  
+            f.write(f'Blocking type{typeid} - {cyc} - {rgname} - {ss} total length: {len(eventPersistence)}\n')
+            f.write(f'Length of the Through interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(ThroughTrack)}\n')
+            f.write(f'Length of the Edge interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(EdgeTrack)}\n')
+            f.write(f'Length of the Absorbed interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(AbsorbedTrack)}\n')
+            f.write(f'Length of the total interaction, {cyc}-Type{typeid}_{rgname}_{ss}: {len(ThroughTrack)+len(AbsorbedTrack)+len(EdgeTrack)}\n')
+            f.write('-----------------------------------------------------\n')
 
     rr, pp = pearsonr(eventPersistence, EddyNumber)
-    with open(f"BlkPersis_EddyNumber_Cor.txt", "a") as f:  
-        f.write(f"{cyc}-Type{typeid}_{rgname}_{ss}, Pearson r = {rr:.4f}, p-value = {pp:.4e}\n")
+    if os.path.exists('BlkPersis_EddyNumber_Cor.txt'):
+        with open('BlkPersis_EddyNumber_Cor.txt', "r") as f:
+            if not any(tag in line for line in f):
+                with open(f"BlkPersis_EddyNumber_Cor.txt", "a") as f:  
+                    f.write(f"{cyc}-Type{typeid}_{rgname}_{ss}, Pearson r = {rr:.4f}, p-value = {pp:.4e}\n")
+    else:
+        with open(f"BlkPersis_EddyNumber_Cor.txt", "a") as f:  
+            f.write(f"{cyc}-Type{typeid}_{rgname}_{ss}, Pearson r = {rr:.4f}, p-value = {pp:.4e}\n")
 
     np.save(f'/scratch/bell/hu1029/LGHW/BlockingType{typeid}_EventEddyNumber_1979_2021_{rgname}_{ss}_{cyc}.npy', np.array(EddyNumber))
     np.save(f'/scratch/bell/hu1029/LGHW/TrackBlockingType{typeid}_Index_1979_2021_{rgname}_{ss}_{cyc}.npy', np.array(BlockIndex))
@@ -246,7 +261,13 @@ def process_combination(args):
     print(f'Blocking type{typeid}-{cyc}_{rgname}_{ss} interaction saved',flush=True)
 
 
-if __name__ == "__main__":
-    param_combinations = list(product(regions, cycTypes, [1, 2, 3], seasons))
-    with Pool(processes=64) as pool:
-        pool.map(process_combination, param_combinations)
+# if __name__ == "__main__":
+#     param_combinations = list(product(regions, cycTypes, [1, 2, 3], seasons))
+#     with Pool(processes=64) as pool:
+#         pool.map(process_combination, param_combinations)
+
+for ss in seasons:
+    for cyc in cycTypes:
+        for rgname in regions:
+                for typeid in [1, 2, 3]:
+                    process_combination((rgname, cyc, typeid, ss))

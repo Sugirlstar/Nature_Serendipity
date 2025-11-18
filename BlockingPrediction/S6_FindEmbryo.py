@@ -409,6 +409,17 @@ for rgname in regions:
         print(f'{typeid}_{rgname}_{ss}, excluded ID: ', excludedEmbryoID, flush=True)
         print(f'{typeid}_{rgname}_{ss}, ----------------------------------------------- ', flush=True)
 
+        flat_relatedblkID = np.array([x for sublist in relatedblkID for x in sublist])
+        unique_blockingID = np.unique(flat_relatedblkID)
+        blockingids = np.array(BlkEventlist)
+        missing_ids = np.setdiff1d(blockingids, unique_blockingID)
+        present_ids = np.intersect1d(blockingids, unique_blockingID)
+
+        print(f'* {rgname}_{typeid}: , Blocking with embryo length: {len(present_ids)}', flush=True)
+        print(f'* {rgname}_{typeid}: , Blocking without embryo length: {len(missing_ids)}', flush=True)
+        print(f'* {rgname}_{typeid}: , Blocking without embryo percentage: {len(missing_ids)/len(blockingids)}', flush=True)
+        print(f'* {rgname}_{typeid}: , Blocking without embryo IDs: {missing_ids}', flush=True)
+
         # save the related blocking event numbers
         successNum = np.array(connectedblknum) + np.array(relatedblknum)
         np.save(f'/scratch/bell/hu1029/LGHW/embryo_SuccessNumbersEachEmbryo_BlkType{typeid}_{rgname}.npy', successNum)

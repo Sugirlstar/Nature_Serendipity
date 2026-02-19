@@ -1,20 +1,24 @@
 #!/bin/bash
 #SBATCH -A ccrc
 #SBATCH --partition=cpu
-#SBATCH --job-name=multiprocess_TRACK
-#SBATCH --output=multiprocess_%j.out
-#SBATCH --error=multiprocess__%j.err
+#SBATCH --job-name=multiprocess_TRACK_JRA55
+#SBATCH --output=multiprocess_JRA55_%j.out
+#SBATCH --error=multiprocess_JRA55_%j.err
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=128
+#SBATCH --ntasks-per-node=50
 #SBATCH --cpus-per-task=1
-#SBATCH --time=1:00:00
+#SBATCH --time=01:00:00
 
 module load parallel
+module load netcdf-c/4.9.2
+export LD_LIBRARY_PATH="$(nc-config --libdir):$LD_LIBRARY_PATH"
 
 cd /scratch/bell/hu1029/LGHW/TRACK/track-TRACK-1.5.4
 export PATH="${PATH}:."
+chmod +x ./master bin/track.linux
+chmod +x ./config.RUN
 
-DATA="/scratch/bell/hu1029/LGHW/TRACK/TRACK_inputdata_geopotentialAnomaly"
+DATA="/scratch/bell/hu1029/LGHW/TRACK/JRA55_TRACK_inputdata_geopotentialAnomaly_yearly"
 TRACKS="${DATA}/TRACKS"
 if [ ! -d "$TRACKS" ]; then
   mkdir "$TRACKS"
@@ -24,20 +28,18 @@ fi
 files=($(find "$DATA" -type f -name "*.nc" -exec basename {} \;))
 
 for ZFILE in "${files[@]}"; do
-  if [ ! -e indat/$ZFILE ]; then
-    ln -s $DATA/$ZFILE indat/$ZFILE
-  else
-    echo "Symbolic link for $ZFILE already exists"
-  fi
+  ln -sf "$DATA/$ZFILE" "indat/$ZFILE"
 done
 
-echo ${files[@]} | tr ' ' '\n' | parallel -j 128 --env TRACKS "
+echo ${files[@]} | tr ' ' '\n' | parallel -j 50 --env TRACKS "
   ZFILE={};
-  TRACKS=/scratch/bell/hu1029/LGHW/TRACK/TRACK_inputdata_geopotentialAnomaly/TRACKS;
+  TRACKS=/scratch/bell/hu1029/LGHW/TRACK/JRA55_TRACK_inputdata_geopotentialAnomaly_yearly/TRACKS;
   STUB=\$(echo \$ZFILE | sed -e 's/\.nc//');
   FILT42=\${STUB}_zfilt_T42.dat;
   EXT=\$STUB;
   bin/track.linux -i \$ZFILE -f \$EXT < specfilt_vor.in;
+  ls -l outdat | head;
   mv outdat/specfil.\${EXT}_band001 indat/\$FILT42;
   master -c=\${STUB}_zonefilt_T42 -e=track.linux -d=now -i=\$FILT42 -f=\$EXT -j=RUN_AT.in -k=initial.T42_NH -n=1,62,24 -o=\$TRACKS -r=RUN_AT_ -s=RUNDATIN.6hr_Z_T42
 "
+

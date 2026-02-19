@@ -31,7 +31,7 @@ ds = xr.open_dataset('/scratch/bell/hu1029/Data/processed/ERA5_Z500_6hr_1979_202
 # ds = ds.sel(time=slice("1979-01-01", "1979-01-10"))
 # ds.to_netcdf('/scratch/bell/hu1029/Data/processed/ERA5_Z500_6hr_1979JFM_F128_subset.nc')
 
-# z500 = ds['var129'].squeeze()/9.80665 # unit: m
+z500 = ds['var129'].squeeze()/9.80665 # unit: m
 z500 = ds['var129'].squeeze()
 
 print(z500.shape)
@@ -66,5 +66,5 @@ ds['var129'] = Z_anomaly_corrected
 ds = ds.drop_vars('month')
 
 # write to the nc file
-ds.to_netcdf('/scratch/bell/hu1029/Data/processed/ERA5_geopotential500_subtractseasonal_6hr_1979_2021.nc')
+ds.to_netcdf('/scratch/bell/hu1029/Data/processed/ERA5_Z500_subtractseasonal_6hr_1979_2021.nc')
 

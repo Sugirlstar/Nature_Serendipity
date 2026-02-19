@@ -341,19 +341,19 @@ def distributionPlotwithCenter(Plot,lon,lat,lon_star,lat_star,ptname):
 def calculate_composites2(pos_HW, matriz):
     import numpy as np
     from scipy import stats
-    dic_composites = {} # dic_composites 用于存储每个时间滞后的索引
+    dic_composites = {} # dic_composites to store the indices of each time lag
 
-    time_lags = np.arange(-20, 21, 1) # time_lags 定义了时间滞后的范围，从 -20 到 20
+    time_lags = np.arange(-20, 21, 1) # time_lags define the range of time lags from -20 to 20
     for pos in pos_HW.index:
         if pos == 0: 
-            dic_composites[0] = [] # 如果 pos 为 0，初始化 dic_composites[0] 
-            dic_composites[0].append(int(pos_HW.iloc[0][0])) # 并添加第一个热浪事件的索引
+            dic_composites[0] = [] # if pos is 0, initialize dic_composites[0]
+            dic_composites[0].append(int(pos_HW.iloc[0][0])) # and add the index of the first heatwave event
             continue
         #elif pos_HW.iloc[pos][0] >= 27270: break  # len(other variables)
         elif pos_HW.iloc[pos][0] == matriz.shape[0]-20: break
         elif pos == pos_HW.index[-1]:
-            break # 检查是否超过矩阵的范围或是最后一个索引，若是则退出循环
-        elif pos_HW.iloc[pos][0]-1 != pos_HW.iloc[pos-1][0]: # 若当前索引和前一个索引不连续，即一场新的HW开始
+            break # check if it exceeds the matrix range or is the last index, if so, exit the loop
+        elif pos_HW.iloc[pos][0]-1 != pos_HW.iloc[pos-1][0]: # if the current index and the previous index are not continuous, it means a new HW starts
             for num in time_lags:  
                 if num in dic_composites.keys(): dic_composites[num].append(int(pos_HW.iloc[pos][0]+num))  
                 else: 
@@ -387,25 +387,25 @@ def calculate_composites2(pos_HW, matriz):
 def spatial_smoothing_wrap(array, x):
     import numpy as np
     from scipy.ndimage import convolve
-    # 创建掩码，标识 np.nan 的位置
+    # Create a mask to identify the locations of np.nan
     nan_mask = np.isnan(array)
-    # 将 np.nan 替换为 0
+    # Replace np.nan with 0
     array_filled = np.where(nan_mask, 0, array)
-    # 扩展数组的列，使得第一列和最后一列相连
+    # Extend the columns of the array so that the first and last columns are connected
     extended_array = np.hstack((array_filled[:, -(x//2):], array_filled, array_filled[:, :x//2]))
     extended_mask = np.hstack((~nan_mask[:, -(x//2):], ~nan_mask, ~nan_mask[:, :x//2]))
-    # 创建一个 x*x 的平均平滑核
+    # Create a x*x average smoothing kernel
     kernel = np.ones((x, x))
-    # 对扩展后的数组和掩码分别进行卷积操作
+    # Perform convolution operations on the extended array and mask
     smoothed_extended_array = convolve(extended_array, kernel, mode='reflect')
     smoothed_extended_mask = convolve(extended_mask.astype(float), kernel, mode='reflect')
-    # 避免除以 0，设置最小值
+    # Avoid division by 0, set a minimum value
     smoothed_extended_mask = np.where(smoothed_extended_mask == 0, np.nan, smoothed_extended_mask)
-    # 计算最终的平滑结果
+    # Calculate the final smoothing result
     smoothed_array = smoothed_extended_array / smoothed_extended_mask
-    # 裁剪回原来的尺寸
+    # Crop back to the original size
     smoothed_array = smoothed_array[:, x//2:-(x//2)]
-    # 恢复原始的 np.nan
+    # Restore the original np.nan
     smoothed_array[nan_mask] = np.nan
     return smoothed_array
 
@@ -427,18 +427,18 @@ def anomalies_seasons(df_VAR):
     
     # dates_d = np.array([dt.datetime.strptime(iii, '%m%d%Y') for iii in df_VAR.index])
     dates_d = np.array([custom_strptime(iii) for iii in df_VAR.index])
-    # 遍历每个月份，从1到12月：
+    # Iterate over each month from January (1) to December (12):
     for i in np.arange(1, 13):
-        mes = df_VAR.iloc[np.where(np.array([ii.month for ii in dates_d])==i)[0]] #筛选出 df_VAR 中所有的第i个月，并存储在 mes 中
-        dates_d_mes = dates_d[np.where(np.array([ii.month for ii in dates_d])==i)[0]] #筛选出 dates_d 中属于当前月份的日期，并存储在 dates_d_mes 中
+        mes = df_VAR.iloc[np.where(np.array([ii.month for ii in dates_d])==i)[0]] # get all data for the i-th month from df_VAR and store it in mes
+        dates_d_mes = dates_d[np.where(np.array([ii.month for ii in dates_d])==i)[0]] # get all dates for the i-th month from dates_d and store it in dates_d_mes
         temp = mes * np.nan
         Nodays = np.array([ii.day for ii in dates_d_mes]).max()
         if np.isnan(Nodays) == True: continue
-        # 循环遍历当前月份的每一天，从1号到最大天数
+        # Loop through each day of the current month, from the 1st to the maximum number of days
         for j in np.arange(1, Nodays + 1):
-            # 筛选出 mes 中属于当前天的数据，并存储在 dia 中，也就是第i个月第j天，所有年份的
+            # Select the data from mes that belongs to the current day and store it in dia, which is all years of the i-th month and j-th day
             dia = mes.iloc[np.where(np.array([ii.day for ii in dates_d_mes])==j)[0]]
-            media = dia.mean() # 求第i个月第j天的均值
+            media = dia.mean() # get the mean for the i-th month and j-th day
             anoma = dia - media
             temp.iloc[np.where(np.array([ii.day for ii in dates_d_mes])==j)[0]] = anoma
         ANOMA.iloc[np.where(np.array([ii.month for ii in dates_d])==i)[0]] = temp
@@ -474,31 +474,31 @@ def clickGetGrid(lat_min,lat_max,lon_min,lon_max,lat_res,lon_res,A,noA=False):
     import cartopy.crs as ccrs
     import cartopy.feature as cfeature
 
-    # 生成经纬度网格
+    # create lat lon grids 
     lons = np.arange(lon_min, lon_max, lon_res)
     lats = np.arange(lat_min, lat_max, lat_res)
     # lat_grid, lon_grid = np.meshgrid( lats, lons)
     lon_grid, lat_grid = np.meshgrid(lons, lats)
 
     if(noA==False):
-        data = np.random.rand(len(lats), len(lons)) # 生成随机填充的二维数组
+        data = np.random.rand(len(lats), len(lons)) # generate a 2D array filled with random values
     else:
         data = A
 
-    # 绘制地图
+    # map
     fig, ax = plt.subplots(subplot_kw={'projection': ccrs.PlateCarree(central_longitude=180)})
     ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree(central_longitude=180))
     ax.add_feature(cfeature.COASTLINE)
     # ax.add_feature(cfeature.BORDERS)
 
-    # 绘制数据
+    # plot the data
     cs = ax.pcolormesh(lon_grid, lat_grid, data, cmap='viridis', transform=ccrs.PlateCarree(central_longitude=180))
     plt.colorbar(cs, ax=ax, orientation='vertical')
     #img_extent = [lon_min, lon_max, lat_min, lat_max]
     #cs = ax.imshow(data, extent=img_extent, origin='lower', transform=ccrs.PlateCarree(), cmap='viridis')
     #plt.colorbar(cs, ax=ax, orientation='vertical')
 
-    # 点击事件处理函数
+    # click event handler
     def onclick(event):
         if event.inaxes == ax:
             lon, lat = event.xdata, event.ydata
@@ -510,11 +510,11 @@ def clickGetGrid(lat_min,lat_max,lon_min,lon_max,lat_res,lon_res,A,noA=False):
             print(f"Array value: {data[n, m]}")
             print("---------------")
             
-            # 绘制星星符号
+            # plot star at clicked location
             ax.plot(lon, lat, marker='*', color='red', markersize=10, transform=ccrs.PlateCarree(central_longitude=180))
             plt.draw()
 
-    # 连接点击事件
+    # click connection
     cid = fig.canvas.mpl_connect('button_press_event', onclick)
 
     plt.show()
@@ -572,13 +572,13 @@ def subseasonal_anomalies(df_VAR):
     years = np.unique(np.array([ii.year for ii in dates_d]))
     ANOMA = df_VAR * np.nan
     for i in years:
-        pos_y = np.where(np.array([ii.year for ii in dates_d])==i)[0] 
-        year = df_VAR.iloc[pos_y] #取出所有第i年的数据
-        dates_d_year = dates_d[np.where(np.array([ii.year for ii in dates_d])==i)[0]] # 提取当前年份的所有日期
+        pos_y = np.where(np.array([ii.year for ii in dates_d])==i)[0]
+        year = df_VAR.iloc[pos_y] # get all data for the i-th year from df_VAR
+        dates_d_year = dates_d[np.where(np.array([ii.year for ii in dates_d])==i)[0]] # get all dates for the i-th year from dates_d
         temp = year * np.nan
         for j in ([3,4,5], [6,7,8], [9,10,11]):
             pos_season = np.where((np.array([ii.month for ii in dates_d_year])==j[0]) | (np.array([ii.month for ii in dates_d_year])==j[1]) | (np.array([ii.month for ii in dates_d_year])==j[2]))[0]
-            season = year.iloc[pos_season] # 筛选出当前年份中属于当前季节 j（三个月） 的索引位置 pos_season 和 数据 season
+            season = year.iloc[pos_season] # get the indices pos_season and data season for the current season j (three months) in the current year
             media = season.mean()
             anoma = season - media
             temp.iloc[pos_season] = anoma

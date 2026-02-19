@@ -1,7 +1,7 @@
 import xarray as xr
 import os
 
-input_file = '/scratch/bell/hu1029/Data/processed/ERA5_geopotential500_subtractseasonal_6hr_1979_2021.nc'
+input_file = '/scratch/bell/hu1029/Data/processed/ERA5_Z500anomaly_subtractseasonal_6hr_1979_2021_F128.nc'
 output_dir = '/scratch/bell/hu1029/LGHW/TRACK/TRACK_inputdata_geopotentialAnomaly' 
 
 ds = xr.open_dataset(input_file)
